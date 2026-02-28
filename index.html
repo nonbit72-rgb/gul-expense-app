@@ -82,7 +82,11 @@ canvas{
 // -------- DATA --------
 let expenses = JSON.parse(localStorage.getItem("gulData")) || [];
 
-let startDate = new Date("2026-03-01");
+let startDate = new Date("2026-03-01T00:00:00+05:30");
+    if (new Date() < startDate) {
+    alert("Entries will start from 1 March 2026");
+    return;
+    }
 let simulatedSeconds = 0;
 
 // -------- TIME SIMULATION --------
