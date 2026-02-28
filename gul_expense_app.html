@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>GUL Advanced Expense App</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<style>
+body{
+    background:#0f172a;
+    color:#e2e8f0;
+    font-family:Arial;
+    padding:15px;
+}
+h1{
+    text-align:center;
+}
+.card{
+    background:#1e293b;
+    padding:15px;
+    margin:10px 0;
+    border-radius:10px;
+}
+input,select,button{
+    padding:8px;
+    margin:5px 0;
+    border-radius:5px;
+    border:none;
+}
+button{
+    background:#3b82f6;
+    color:white;
+}
+button:hover{
+    background:#2563eb;
+}
+canvas{
+    background:#111827;
+    border-radius:10px;
+}
+.stat{
+    font-size:18px;
+    margin:5px 0;
+}
+</style>
+</head>
+<body>
+
+<h1>GUL Expense Manager</h1>
+
+<div class="card">
+<div class="stat" id="time"></div>
+<div class="stat" id="total"></div>
+<div class="stat" id="avgDay"></div>
+<div class="stat" id="avgMonth"></div>
+</div>
+
+<div class="card">
+<canvas id="lineChart"></canvas>
+</div>
+
+<div class="card">
+<canvas id="pieChart"></canvas>
+</div>
+
+<div class="card">
+<select id="category">
+<option>Food</option>
+<option>Travel</option>
+<option>Shopping</option>
+<option>College Expense</option>
+<option>Other</option>
+</select>
+<input type="number" id="amount" placeholder="Enter Amount">
+<button onclick="addExpense()">Add Expense</button>
+<button onclick="exportCSV()">Export CSV</button>
+</div>
+
+<script>
+
+// -------- DATA --------
+let expenses = JSON.parse(localStorage.getItem("gulData")) || [];
+
+let startDate = new Date("2026-03-01");
+let simulatedSeconds = 0;
+
+// -------- TIME SIMULATION --------
+function getSimulatedDate(){
+    let now = new Date(startDate.getTime() + simulatedSeconds*1000);
+    return now;
+}
+
+// -------- ADD EXPENSE --------
+function addExpense(){
+    let cat = document.getElementById("category").value;
+    let amt = parseFloat(document.getElementById("amount").value);
+    if(!amt) return;
+
+    let date = getSimulatedDate();
+
+    expenses.push({
+        category:cat,
+        amount:amt,
+        date:date.toISOString()
+    });
+
+    localStorage.setItem("gulData",JSON.stringify(expenses));
+    document.getElementById("amount").value="";
+    updateAll();
+}
+
+// -------- STATS --------
+function updateStats(){
+    let total = 0;
+    expenses.forEach(e=> total+=e.amount);
+
+    let days = Math.max(1, Math.floor(simulatedSeconds/86400)+1);
+    let months = Math.max(1, Math.floor(days/30));
+
+    document.getElementById("total").innerText="Total Spending: ₹"+total.toFixed(2);
+    document.getElementById("avgDay").innerText="Average Per Day: ₹"+(total/days).toFixed(2);
+    document.getElementById("avgMonth").innerText="Average Per Month: ₹"+(total/months).toFixed(2);
+
+    document.getElementById("time").innerText =
+"Simulated Time (IST): " +
+getSimulatedDate().toLocaleString("en-IN", { timeZone: "Asia/Kolkata" });
+}
+
+// -------- DAILY DATA --------
+function getDailyData(){
+    let map={};
+    expenses.forEach(e=>{
+        let d = e.date.split("T")[0];
+        if(!map[d]) map[d]=0;
+        map[d]+=e.amount;
+    });
+    return map;
+}
+
+// -------- MONTHLY DATA --------
+function getMonthlyData(){
+    let map={};
+    expenses.forEach(e=>{
+        let d = e.date.substring(0,7);
+        if(!map[d]) map[d]=0;
+        map[d]+=e.amount;
+    });
+    return map;
+}
+
+// -------- PIE DATA --------
+function getCategoryData(){
+    let map={};
+    expenses.forEach(e=>{
+        if(!map[e.category]) map[e.category]=0;
+        map[e.category]+=e.amount;
+    });
+    return map;
+}
+
+// -------- CHARTS --------
+let lineChart = new Chart(document.getElementById("lineChart"),{
+type:'line',
+data:{labels:[],datasets:[{label:'Daily Spending',data:[],borderColor:'#3b82f6',fill:false}]},
+options:{animation:false,responsive:true}
+});
+
+let pieChart = new Chart(document.getElementById("pieChart"),{
+type:'pie',
+data:{labels:[],datasets:[{data:[]}]},
+options:{animation:false,responsive:true}
+});
+
+function updateCharts(){
+    let daily = getDailyData();
+    lineChart.data.labels = Object.keys(daily);
+    lineChart.data.datasets[0].data = Object.values(daily);
+    lineChart.update();
+
+    let cat = getCategoryData();
+    pieChart.data.labels = Object.keys(cat);
+    pieChart.data.datasets[0].data = Object.values(cat);
+    pieChart.update();
+}
+
+// -------- EXPORT CSV --------
+function exportCSV(){
+    let csv="Category,Amount,Date\n";
+    expenses.forEach(e=>{
+        csv+=`${e.category},${e.amount},${e.date}\n`;
+    });
+
+    let blob=new Blob([csv],{type:"text/csv"});
+    let link=document.createElement("a");
+    link.href=URL.createObjectURL(blob);
+    link.download="expenses.csv";
+    link.click();
+}
+
+// -------- UPDATE ALL --------
+function updateAll(){
+    updateStats();
+    updateCharts();
+}
+
+// -------- LIGHT AUTO REFRESH (1 sec) --------
+setInterval(()=>{
+    simulatedSeconds++;
+    updateStats(); // only stats update every second (lightweight)
+},1000);
+
+updateAll();
+
+</script>
+</body>
+</html>
