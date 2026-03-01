@@ -82,35 +82,19 @@ canvas{
 // -------- DATA --------
 let expenses = JSON.parse(localStorage.getItem("gulData")) || [];
 
-// ✅ START FROM 1 MARCH 2026 IST
-let startDate = new Date("2026-03-01T00:00:00+05:30");
-
-let simulatedSeconds = 0;
-
-// -------- TIME SIMULATION --------
-function getSimulatedDate(){
-    return new Date(startDate.getTime() + simulatedSeconds*1000);
-}
-
 // -------- ADD EXPENSE --------
 function addExpense(){
-
-    // Block entries before 1 March
-    if (new Date() < startDate) {
-        alert("Entries will start from 1 March 2026 (IST)");
-        return;
-    }
 
     let cat = document.getElementById("category").value;
     let amt = parseFloat(document.getElementById("amount").value);
     if(!amt) return;
 
-    let date = getSimulatedDate();
+    let now = new Date(); // REAL CURRENT TIME
 
     expenses.push({
         category:cat,
         amount:amt,
-        date:date.toISOString()
+        date:now.toISOString()
     });
 
     localStorage.setItem("gulData",JSON.stringify(expenses));
@@ -124,7 +108,15 @@ function updateStats(){
     let total = 0;
     expenses.forEach(e=> total+=e.amount);
 
-    let days = Math.max(1, Math.floor(simulatedSeconds/86400)+1);
+    let now = new Date();
+
+    // Find first expense date
+    let firstDate = expenses.length > 0 
+        ? new Date(expenses[0].date)
+        : now;
+
+    let diffTime = now - firstDate;
+    let days = Math.max(1, Math.floor(diffTime / (1000*60*60*24)) + 1);
     let months = Math.max(1, Math.floor(days/30));
 
     document.getElementById("total").innerText =
@@ -137,8 +129,8 @@ function updateStats(){
         "Average Per Month: ₹"+(total/months).toFixed(2);
 
     document.getElementById("time").innerText =
-        "Simulated Time (IST): " +
-        getSimulatedDate().toLocaleString("en-IN", {
+        "Current Time (IST): " +
+        now.toLocaleString("en-IN", {
             timeZone: "Asia/Kolkata",
             hour12:false
         });
@@ -148,7 +140,7 @@ function updateStats(){
 function getDailyData(){
     let map={};
     expenses.forEach(e=>{
-        let d = e.date.split("T")[0];
+        let d = new Date(e.date).toLocaleDateString("en-CA");
         if(!map[d]) map[d]=0;
         map[d]+=e.amount;
     });
@@ -215,11 +207,8 @@ function updateAll(){
     updateCharts();
 }
 
-// -------- AUTO REFRESH --------
-setInterval(()=>{
-    simulatedSeconds++;
-    updateStats();
-},1000);
+// -------- REAL TIME CLOCK --------
+setInterval(updateStats,1000);
 
 updateAll();
 
