@@ -110,23 +110,29 @@ function updateStats(){
 
     let now = new Date();
 
-    // Find first expense date
+    // First expense date
     let firstDate = expenses.length > 0 
         ? new Date(expenses[0].date)
         : now;
 
     let diffTime = now - firstDate;
+
     let days = Math.max(1, Math.floor(diffTime / (1000*60*60*24)) + 1);
     let months = Math.max(1, Math.floor(days/30));
+    let minutes = Math.max(1, Math.floor(diffTime / (1000*60)));
+
+    let avgPerDay = total/days;
+    let avgPerMonth = total/months;
+    let avgPerMinute = total/minutes;
 
     document.getElementById("total").innerText =
         "Total Spending: ₹"+total.toFixed(2);
 
     document.getElementById("avgDay").innerText =
-        "Average Per Day: ₹"+(total/days).toFixed(2);
+        "Average Per Day: ₹"+avgPerDay.toFixed(2);
 
     document.getElementById("avgMonth").innerText =
-        "Average Per Month: ₹"+(total/months).toFixed(2);
+        "Average Per Month: ₹"+avgPerMonth.toFixed(2);
 
     document.getElementById("time").innerText =
         "Current Time (IST): " +
@@ -134,6 +140,17 @@ function updateStats(){
             timeZone: "Asia/Kolkata",
             hour12:false
         });
+
+    // 🆕 Add this line display
+    if(!document.getElementById("avgMinute")){
+        let div = document.createElement("div");
+        div.className="stat";
+        div.id="avgMinute";
+        document.querySelector(".card").appendChild(div);
+    }
+
+    document.getElementById("avgMinute").innerText =
+        "Average Per Minute: ₹"+avgPerMinute.toFixed(4);
 }
 
 // -------- DAILY DATA --------
