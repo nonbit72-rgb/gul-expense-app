@@ -129,7 +129,6 @@ function updateBudget(){
 
     let info = document.getElementById("budgetInfo");
     info.innerHTML = `Budget: ₹${monthlyBudget}<br>Remaining: ₹${remaining}`;
-
     info.style.color = total > monthlyBudget ? "red" : "#e2e8f0";
 }
 
@@ -152,7 +151,6 @@ function addExpense(){
 
 // -------- STATS --------
 function updateStats(){
-
     let total = expenses.reduce((sum,e)=>sum+e.amount,0);
     let now = new Date();
 
@@ -308,10 +306,33 @@ function updateAll(){
     updateBudget();
 }
 
-// -------- CLOCK --------
-setInterval(updateStats,1000);
+// -------- SMART CLOCK CONTROL --------
 
+// Update once on load
 updateAll();
+
+// Update stats only when visible (no background CPU usage)
+let clockInterval;
+
+function startClock(){
+    clockInterval = setInterval(updateStats, 3600000); // 1 hour
+}
+
+function stopClock(){
+    clearInterval(clockInterval);
+}
+
+document.addEventListener("visibilitychange", function(){
+    if(document.hidden){
+        stopClock();
+    } else {
+        updateStats();
+        startClock();
+    }
+});
+
+// Start initially
+startClock();
 
 </script>
 </body>
