@@ -5,13 +5,16 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="theme-color" content="#0f172a">
 <title>GUL Advanced Expense App</title>
+
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <link rel="manifest" href="manifest.json">
-    <script>
+
+<script>
 if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register('service-worker.js');
 }
-    </script>
+</script>
+
 <style>
 body{
     background:#0f172a;
@@ -48,6 +51,7 @@ canvas{
 }
 </style>
 </head>
+
 <body>
 
 <h1>GUL Expense Manager</h1>
@@ -57,18 +61,16 @@ canvas{
 <div class="stat" id="total"></div>
 <div class="stat" id="avgDay"></div>
 <div class="stat" id="avgMonth"></div>
+<div class="stat" id="avgMinute"></div>
 </div>
+
 <div class="card">
 <h3>Monthly Budget</h3>
-
-<input type="number" id="monthlyBudget" 
-placeholder="Set Monthly Budget"
-style="width:100%;padding:8px;margin-bottom:8px;border-radius:8px;">
-
+<input type="number" id="monthlyBudget" placeholder="Set Monthly Budget">
 <button onclick="setBudget()">Set Budget</button>
-
-<div id="budgetInfo" style="margin-top:10px;"></div>
+<div id="budgetInfo"></div>
 </div>
+
 <div class="card">
 <canvas id="lineChart"></canvas>
 </div>
@@ -87,14 +89,12 @@ style="width:100%;padding:8px;margin-bottom:8px;border-radius:8px;">
 </select>
 
 <input type="number" id="amount" placeholder="Enter Amount">
-
 <button onclick="addExpense()">Add Expense</button>
 <button onclick="exportCSV()">Export CSV</button>
 </div>
-<div class="card">
 
-<select onchange="sortExpenses(this.value)"
-style="width:100%;padding:8px;margin-bottom:10px;border-radius:8px;">
+<div class="card">
+<select onchange="sortExpenses(this.value)">
 <option value="latest">Latest</option>
 <option value="oldest">Oldest</option>
 <option value="high">Highest</option>
@@ -105,19 +105,18 @@ style="width:100%;padding:8px;margin-bottom:10px;border-radius:8px;">
 
 <input type="text" id="searchInput" 
 placeholder="Search expenses..." 
-onkeyup="renderExpenseList()" 
-style="width:100%;padding:8px;margin-bottom:10px;border-radius:8px;">
+onkeyup="renderExpenseList()">
 
 <div id="expenseList"></div>
-
 </div>
-    <input type="number" id="monthlyBudget" placeholder="Set Monthly Budget">
-<button onclick="setBudget()">Set Budget</button>
-<div id="budgetInfo"></div>
-<script>
-//-----budget-------
-    let monthlyBudget = localStorage.getItem("budget") || 0;
 
+<script>
+
+// -------- DATA --------
+let expenses = JSON.parse(localStorage.getItem("gulData")) || [];
+let monthlyBudget = localStorage.getItem("budget") || 0;
+
+// -------- BUDGET --------
 function setBudget(){
     monthlyBudget = parseFloat(document.getElementById("monthlyBudget").value);
     localStorage.setItem("budget",monthlyBudget);
@@ -128,30 +127,22 @@ function updateBudget(){
     let total = expenses.reduce((sum,e)=>sum+e.amount,0);
     let remaining = monthlyBudget - total;
 
-    document.getElementById("budgetInfo").innerHTML = 
-    `Budget: ₹${monthlyBudget} <br>
-     Remaining: ₹${remaining}`;
+    let info = document.getElementById("budgetInfo");
+    info.innerHTML = `Budget: ₹${monthlyBudget}<br>Remaining: ₹${remaining}`;
 
-    if(total > monthlyBudget){
-        document.getElementById("budgetInfo").style.color="red";
-    }
+    info.style.color = total > monthlyBudget ? "red" : "#e2e8f0";
 }
-// -------- DATA --------
-let expenses = JSON.parse(localStorage.getItem("gulData")) || [];
 
 // -------- ADD EXPENSE --------
 function addExpense(){
-
     let cat = document.getElementById("category").value;
     let amt = parseFloat(document.getElementById("amount").value);
     if(!amt) return;
 
-    let now = new Date(); // REAL CURRENT TIME
-
     expenses.push({
         category:cat,
         amount:amt,
-        date:now.toISOString()
+        date:new Date().toISOString()
     });
 
     localStorage.setItem("gulData",JSON.stringify(expenses));
@@ -162,52 +153,31 @@ function addExpense(){
 // -------- STATS --------
 function updateStats(){
 
-    let total = 0;
-    expenses.forEach(e=> total+=e.amount);
-
+    let total = expenses.reduce((sum,e)=>sum+e.amount,0);
     let now = new Date();
 
-    // First expense date
-    let firstDate = expenses.length > 0 
-        ? new Date(expenses[0].date)
-        : now;
-
+    let firstDate = expenses.length ? new Date(expenses[0].date) : now;
     let diffTime = now - firstDate;
 
     let days = Math.max(1, Math.floor(diffTime / (1000*60*60*24)) + 1);
     let months = Math.max(1, Math.floor(days/30));
     let minutes = Math.max(1, Math.floor(diffTime / (1000*60)));
 
-    let avgPerDay = total/days;
-    let avgPerMonth = total/months;
-    let avgPerMinute = total/minutes;
-
     document.getElementById("total").innerText =
         "Total Spending: ₹"+total.toFixed(2);
 
     document.getElementById("avgDay").innerText =
-        "Average Per Day: ₹"+avgPerDay.toFixed(2);
+        "Average Per Day: ₹"+(total/days).toFixed(2);
 
     document.getElementById("avgMonth").innerText =
-        "Average Per Month: ₹"+avgPerMonth.toFixed(2);
+        "Average Per Month: ₹"+(total/months).toFixed(2);
+
+    document.getElementById("avgMinute").innerText =
+        "Average Per Minute: ₹"+(total/minutes).toFixed(4);
 
     document.getElementById("time").innerText =
         "Current Time (IST): " +
-        now.toLocaleString("en-IN", {
-            timeZone: "Asia/Kolkata",
-            hour12:false
-        });
-
-    // 🆕 Add this line display
-    if(!document.getElementById("avgMinute")){
-        let div = document.createElement("div");
-        div.className="stat";
-        div.id="avgMinute";
-        document.querySelector(".card").appendChild(div);
-    }
-
-    document.getElementById("avgMinute").innerText =
-        "Average Per Minute: ₹"+avgPerMinute.toFixed(4);
+        now.toLocaleString("en-IN",{timeZone:"Asia/Kolkata",hour12:false});
 }
 
 // -------- DAILY DATA --------
@@ -215,8 +185,7 @@ function getDailyData(){
     let map={};
     expenses.forEach(e=>{
         let d = new Date(e.date).toLocaleDateString("en-CA");
-        if(!map[d]) map[d]=0;
-        map[d]+=e.amount;
+        map[d] = (map[d]||0)+e.amount;
     });
     return map;
 }
@@ -225,8 +194,7 @@ function getDailyData(){
 function getCategoryData(){
     let map={};
     expenses.forEach(e=>{
-        if(!map[e.category]) map[e.category]=0;
-        map[e.category]+=e.amount;
+        map[e.category] = (map[e.category]||0)+e.amount;
     });
     return map;
 }
@@ -274,33 +242,28 @@ function exportCSV(){
     link.download="expenses.csv";
     link.click();
 }
-    function renderExpenseList(){
 
+// -------- LIST --------
+function renderExpenseList(){
     let container = document.getElementById("expenseList");
-    container.innerHTML = "";
-
-    let search = document.getElementById("searchInput")?.value.toLowerCase() || "";
+    container.innerHTML="";
+    let search=document.getElementById("searchInput").value.toLowerCase();
 
     expenses.forEach((e,index)=>{
+        if(e.category.toLowerCase().includes(search) ||
+           e.amount.toString().includes(search)){
 
-        if(
-            e.category.toLowerCase().includes(search) ||
-            e.amount.toString().includes(search)
-        ){
-
-            let div = document.createElement("div");
+            let div=document.createElement("div");
             div.style.background="#0f172a";
             div.style.padding="8px";
             div.style.margin="5px 0";
             div.style.borderRadius="8px";
 
-            let date = new Date(e.date).toLocaleString("en-IN", {
-                timeZone:"Asia/Kolkata",
-                hour12:false
-            });
+            let date=new Date(e.date).toLocaleString("en-IN",
+                {timeZone:"Asia/Kolkata",hour12:false});
 
-            div.innerHTML = `
-                <strong>${e.category}</strong> - ₹${e.amount.toFixed(4)}<br>
+            div.innerHTML=`
+                <strong>${e.category}</strong> - ₹${e.amount.toFixed(2)}<br>
                 <small>${date}</small><br>
                 <button onclick="editExpense(${index})">Edit</button>
                 <button onclick="removeExpense(${index})" style="background:#ef4444">Remove</button>
@@ -311,48 +274,32 @@ function exportCSV(){
     });
 }
 
-        div.innerHTML = `
-            <strong>${e.category}</strong> - ₹${e.amount.toFixed(4)}<br>
-            <small>${date}</small><br>
-            <button onclick="editExpense(${index})">Edit</button>
-<button onclick="removeExpense(${index})" style="background:#ef4444">Remove</button>
-        `;
-
-        container.appendChild(div);
-    });
-}
-    //----edit------------
-    function editExpense(index){
-    let newAmount = prompt("Enter new amount:", expenses[index].amount);
-    if(newAmount !== null){
-        expenses[index].amount = parseFloat(newAmount);
+// -------- EDIT --------
+function editExpense(index){
+    let newAmount=prompt("Enter new amount:",expenses[index].amount);
+    if(newAmount!==null){
+        expenses[index].amount=parseFloat(newAmount);
         localStorage.setItem("gulData",JSON.stringify(expenses));
         updateAll();
     }
-    }
-    //-------sort--------
-    function sortExpenses(type){
-    if(type=="latest") expenses.sort((a,b)=> new Date(b.date)-new Date(a.date));
-    if(type=="oldest") expenses.sort((a,b)=> new Date(a.date)-new Date(b.date));
-    if(type=="high") expenses.sort((a,b)=> b.amount-a.amount);
-    if(type=="low") expenses.sort((a,b)=> a.amount-b.amount);
-    updateAll();
-    }
-//-------remove expansion ---------
+}
+
+// -------- REMOVE --------
 function removeExpense(index){
     expenses.splice(index,1);
     localStorage.setItem("gulData",JSON.stringify(expenses));
     updateAll();
 }
-//-----    edit exp-------
-    function editExpense(index){
-    let newAmount = prompt("Enter new amount:", expenses[index].amount);
-    if(newAmount !== null){
-        expenses[index].amount = parseFloat(newAmount);
-        localStorage.setItem("gulData",JSON.stringify(expenses));
-        updateAll();
-    }
-    }
+
+// -------- SORT --------
+function sortExpenses(type){
+    if(type=="latest") expenses.sort((a,b)=>new Date(b.date)-new Date(a.date));
+    if(type=="oldest") expenses.sort((a,b)=>new Date(a.date)-new Date(b.date));
+    if(type=="high") expenses.sort((a,b)=>b.amount-a.amount);
+    if(type=="low") expenses.sort((a,b)=>a.amount-b.amount);
+    updateAll();
+}
+
 // -------- UPDATE ALL --------
 function updateAll(){
     updateStats();
@@ -360,7 +307,8 @@ function updateAll(){
     renderExpenseList();
     updateBudget();
 }
-// -------- REAL TIME CLOCK --------
+
+// -------- CLOCK --------
 setInterval(updateStats,1000);
 
 updateAll();
