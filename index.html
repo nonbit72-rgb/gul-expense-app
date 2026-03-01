@@ -76,7 +76,10 @@ canvas{
 <button onclick="addExpense()">Add Expense</button>
 <button onclick="exportCSV()">Export CSV</button>
 </div>
-
+<div class="card">
+<h3>Expense List</h3>
+<div id="expenseList"></div>
+</div>
 <script>
 
 // -------- DATA --------
@@ -217,13 +220,49 @@ function exportCSV(){
     link.download="expenses.csv";
     link.click();
 }
+function renderExpenseList(){
 
+    let container = document.getElementById("expenseList");
+    container.innerHTML = "";
+
+    expenses.forEach((e,index)=>{
+
+        let div = document.createElement("div");
+        div.style.background="#0f172a";
+        div.style.padding="8px";
+        div.style.margin="5px 0";
+        div.style.borderRadius="8px";
+
+        let date = new Date(e.date).toLocaleString("en-IN", {
+            timeZone:"Asia/Kolkata",
+            hour12:false
+        });
+
+        div.innerHTML = `
+            <strong>${e.category}</strong> - ₹${e.amount.toFixed(4)}<br>
+            <small>${date}</small><br>
+            <button onclick="removeExpense(${index})" 
+                style="background:#ef4444;margin-top:5px;">
+                Remove
+            </button>
+        `;
+
+        container.appendChild(div);
+    });
+}
+//-------remove expansion ---------
+function removeExpense(index){
+    expenses.splice(index,1);
+    localStorage.setItem("gulData",JSON.stringify(expenses));
+    updateAll();
+}
+    
 // -------- UPDATE ALL --------
 function updateAll(){
     updateStats();
     updateCharts();
+    renderExpenseList();
 }
-
 // -------- REAL TIME CLOCK --------
 setInterval(updateStats,1000);
 
