@@ -58,7 +58,17 @@ canvas{
 <div class="stat" id="avgDay"></div>
 <div class="stat" id="avgMonth"></div>
 </div>
+<div class="card">
+<h3>Monthly Budget</h3>
 
+<input type="number" id="monthlyBudget" 
+placeholder="Set Monthly Budget"
+style="width:100%;padding:8px;margin-bottom:8px;border-radius:8px;">
+
+<button onclick="setBudget()">Set Budget</button>
+
+<div id="budgetInfo" style="margin-top:10px;"></div>
+</div>
 <div class="card">
 <canvas id="lineChart"></canvas>
 </div>
@@ -81,16 +91,25 @@ canvas{
 <button onclick="addExpense()">Add Expense</button>
 <button onclick="exportCSV()">Export CSV</button>
 </div>
-    <input type="text" id="searchInput" placeholder="Search..." onkeyup="renderExpenseList()">
 <div class="card">
-    <select onchange="sortExpenses(this.value)">
+
+<select onchange="sortExpenses(this.value)"
+style="width:100%;padding:8px;margin-bottom:10px;border-radius:8px;">
 <option value="latest">Latest</option>
 <option value="oldest">Oldest</option>
 <option value="high">Highest</option>
 <option value="low">Lowest</option>
-    </select>
+</select>
+
 <h3>Expense List</h3>
+
+<input type="text" id="searchInput" 
+placeholder="Search expenses..." 
+onkeyup="renderExpenseList()" 
+style="width:100%;padding:8px;margin-bottom:10px;border-radius:8px;">
+
 <div id="expenseList"></div>
+
 </div>
     <input type="number" id="monthlyBudget" placeholder="Set Monthly Budget">
 <button onclick="setBudget()">Set Budget</button>
