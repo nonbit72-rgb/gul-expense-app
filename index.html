@@ -11,35 +11,77 @@
 
 <script>
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('service-worker.js').then(reg => {
-
-    // 🔥 Detect new updates on GitHub
-    reg.onupdatefound = () => {
-      const newWorker = reg.installing;
-      newWorker.onstatechange = () => {
-        if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-          alert("New version available. Please refresh.");
-        }
-      };
-    };
-
-  });
+  navigator.serviceWorker.register('service-worker.js');
 }
 </script>
 
 <style>
-body{background:#0f172a;color:#e2e8f0;font-family:Arial;padding:15px;margin:0;}
+body{
+    background:#0f172a;
+    color:#e2e8f0;
+    font-family:Arial;
+    padding:15px;
+    margin:0;
+}
 h1{text-align:center;}
-.card{background:#1e293b;padding:15px;margin:10px 0;border-radius:10px;}
-input,select,button{padding:10px;margin:5px 0;border-radius:5px;border:none;width:100%;}
-button{background:#3b82f6;color:white;}
-button:hover{background:#2563eb;}
-canvas{background:#111827;border-radius:10px;}
-.stat{font-size:16px;margin:5px 0;}
-.section{margin-bottom:80px;}
-.bottomNav{position:fixed;bottom:0;left:0;width:100%;background:#1e293b;display:flex;justify-content:space-around;padding:10px 0;}
-.bottomNav button{background:none;color:#e2e8f0;border:none;font-size:14px;}
-.bottomNav button:hover{color:#3b82f6;}
+
+.card{
+    background:#1e293b;
+    padding:15px;
+    margin:10px 0;
+    border-radius:10px;
+}
+
+input,select,button{
+    padding:10px;
+    margin:5px 0;
+    border-radius:5px;
+    border:none;
+    width:100%;
+}
+
+button{
+    background:#3b82f6;
+    color:white;
+}
+
+button:hover{ background:#2563eb; }
+
+canvas{
+    background:#111827;
+    border-radius:10px;
+}
+
+.stat{
+    font-size:16px;
+    margin:5px 0;
+}
+
+.section{
+  margin-bottom:80px;
+}
+
+.bottomNav{
+  position:fixed;
+  bottom:0;
+  left:0;
+  width:100%;
+  background:#1e293b;
+  display:flex;
+  justify-content:space-around;
+  padding:10px 0;
+}
+
+.bottomNav button{
+  background:none;
+  color:#e2e8f0;
+  border:none;
+  font-size:14px;
+}
+
+.bottomNav button:hover{
+  color:#3b82f6;
+}
 </style>
 </head>
 
@@ -47,16 +89,19 @@ canvas{background:#111827;border-radius:10px;}
 
 <h1>GUL Expense Manager</h1>
 
+<!-- -------- HOME SECTION -------- -->
 <div id="homeSection" class="section">
   <div class="card">
     <div class="stat" id="time"></div>
     <div class="stat" id="total"></div>
-    <div class="stat" id="avgDay"></div>
     <div class="stat" id="avgMonth"></div>
+    <div class="stat" id="avgDay"></div>
+    <div class="stat" id="avgHour"></div>
     <div class="stat" id="avgMinute"></div>
   </div>
 </div>
 
+<!-- -------- BUDGET SECTION -------- -->
 <div id="budgetSection" class="section" style="display:none;">
   <div class="card">
     <h3>Monthly Budget</h3>
@@ -64,10 +109,12 @@ canvas{background:#111827;border-radius:10px;}
     <button onclick="setBudget()">Set Budget</button>
     <div id="budgetInfo"></div>
   </div>
+
   <div class="card"><canvas id="lineChart"></canvas></div>
   <div class="card"><canvas id="pieChart"></canvas></div>
 </div>
 
+<!-- -------- ADD SECTION -------- -->
 <div id="addSection" class="section" style="display:none;">
   <div class="card">
     <select id="category">
@@ -82,6 +129,7 @@ canvas{background:#111827;border-radius:10px;}
   </div>
 </div>
 
+<!-- -------- LIST SECTION -------- -->
 <div id="listSection" class="section" style="display:none;">
   <div class="card">
     <select onchange="sortExpenses(this.value)">
@@ -95,6 +143,7 @@ canvas{background:#111827;border-radius:10px;}
   </div>
 </div>
 
+<!-- -------- NAVIGATION -------- -->
 <div class="bottomNav">
   <button onclick="showSection('homeSection')">Home</button>
   <button onclick="showSection('budgetSection')">Budget</button>
@@ -145,14 +194,35 @@ function addExpense(){
 }
 
 function updateStats(){
-  let total=expenses.reduce((s,e)=>s+e.amount,0);
-  let now=new Date();
-  let firstDate=expenses.length?new Date(expenses[0].date):now;
-  let diff=now-firstDate;
-  let days=Math.max(1,Math.floor(diff/(1000*60*60*24))+1);
-  document.getElementById("total").innerText="Total Spending: ₹"+total.toFixed(2);
-  document.getElementById("avgDay").innerText="Average Per Day: ₹"+(total/days).toFixed(2);
-  document.getElementById("time").innerText="Current Time (IST): "+now.toLocaleString("en-IN",{timeZone:"Asia/Kolkata",hour12:false});
+    let total = expenses.reduce((sum,e)=>sum+e.amount,0);
+    let now = new Date();
+
+    let firstDate = expenses.length ? new Date(expenses[0].date) : now;
+    let diffTime = now - firstDate;
+
+    let days = Math.max(1, diffTime / (1000*60*60*24));
+    let months = Math.max(1, days / 30);
+    let hours = Math.max(1, diffTime / (1000*60*60));
+    let minutes = Math.max(1, diffTime / (1000*60));
+
+    document.getElementById("total").innerText =
+        "Total Spending: ₹" + total.toFixed(2);
+
+    document.getElementById("avgMonth").innerText =
+        "Average Per Month: ₹" + (total/months).toFixed(2);
+
+    document.getElementById("avgDay").innerText =
+        "Average Per Day: ₹" + (total/days).toFixed(2);
+
+    document.getElementById("avgHour").innerText =
+        "Average Per Hour: ₹" + (total/hours).toFixed(2);
+
+    document.getElementById("avgMinute").innerText =
+        "Average Per Minute: ₹" + (total/minutes).toFixed(4);
+
+    document.getElementById("time").innerText =
+        "Current Time (IST): " +
+        now.toLocaleString("en-IN",{timeZone:"Asia/Kolkata",hour12:false});
 }
 
 function getDailyData(){
@@ -174,7 +244,7 @@ function getCategoryData(){
 
 let lineChart=new Chart(document.getElementById("lineChart"),{
   type:'line',
-  data:{labels:[],datasets:[{label:'Daily Spending',data:[],borderColor:'#3b82f6'}]},
+  data:{labels:[],datasets:[{label:'Daily Spending',data:[],borderColor:'#3b82f6',fill:false}]},
   options:{animation:false,responsive:true}
 });
 
@@ -226,11 +296,13 @@ function updateAll(){
 }
 
 updateAll();
-let clockInterval;
-function startClock(){clockInterval=setInterval(updateStats,3600000);}
-function stopClock(){clearInterval(clockInterval);}
-document.addEventListener("visibilitychange",()=>{document.hidden?stopClock():startClock();});
-startClock();
+
+// 🔥 LIVE HOME UPDATE EVERY 1 MINUTE
+setInterval(function(){
+    if(document.getElementById("homeSection").style.display !== "none"){
+        updateStats();
+    }
+},60000);
 
 </script>
 </body>
