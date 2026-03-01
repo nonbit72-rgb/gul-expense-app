@@ -81,7 +81,14 @@ canvas{
 <button onclick="addExpense()">Add Expense</button>
 <button onclick="exportCSV()">Export CSV</button>
 </div>
+    <input type="text" id="searchInput" placeholder="Search..." onkeyup="renderExpenseList()">
 <div class="card">
+    <select onchange="sortExpenses(this.value)">
+<option value="latest">Latest</option>
+<option value="oldest">Oldest</option>
+<option value="high">Highest</option>
+<option value="low">Lowest</option>
+    </select>
 <h3>Expense List</h3>
 <div id="expenseList"></div>
 </div>
@@ -225,43 +232,85 @@ function exportCSV(){
     link.download="expenses.csv";
     link.click();
 }
-function renderExpenseList(){
+    function renderExpenseList(){
 
     let container = document.getElementById("expenseList");
     container.innerHTML = "";
 
+    let search = document.getElementById("searchInput")?.value.toLowerCase() || "";
+
     expenses.forEach((e,index)=>{
 
-        let div = document.createElement("div");
-        div.style.background="#0f172a";
-        div.style.padding="8px";
-        div.style.margin="5px 0";
-        div.style.borderRadius="8px";
+        if(
+            e.category.toLowerCase().includes(search) ||
+            e.amount.toString().includes(search)
+        ){
 
-        let date = new Date(e.date).toLocaleString("en-IN", {
-            timeZone:"Asia/Kolkata",
-            hour12:false
-        });
+            let div = document.createElement("div");
+            div.style.background="#0f172a";
+            div.style.padding="8px";
+            div.style.margin="5px 0";
+            div.style.borderRadius="8px";
+
+            let date = new Date(e.date).toLocaleString("en-IN", {
+                timeZone:"Asia/Kolkata",
+                hour12:false
+            });
+
+            div.innerHTML = `
+                <strong>${e.category}</strong> - ₹${e.amount.toFixed(4)}<br>
+                <small>${date}</small><br>
+                <button onclick="editExpense(${index})">Edit</button>
+                <button onclick="removeExpense(${index})" style="background:#ef4444">Remove</button>
+            `;
+
+            container.appendChild(div);
+        }
+    });
+}
 
         div.innerHTML = `
             <strong>${e.category}</strong> - ₹${e.amount.toFixed(4)}<br>
             <small>${date}</small><br>
-            <button onclick="removeExpense(${index})" 
-                style="background:#ef4444;margin-top:5px;">
-                Remove
-            </button>
+            <button onclick="editExpense(${index})">Edit</button>
+<button onclick="removeExpense(${index})" style="background:#ef4444">Remove</button>
         `;
 
         container.appendChild(div);
     });
 }
+    //----edit------------
+    function editExpense(index){
+    let newAmount = prompt("Enter new amount:", expenses[index].amount);
+    if(newAmount !== null){
+        expenses[index].amount = parseFloat(newAmount);
+        localStorage.setItem("gulData",JSON.stringify(expenses));
+        updateAll();
+    }
+    }
+    //-------sort--------
+    function sortExpenses(type){
+    if(type=="latest") expenses.sort((a,b)=> new Date(b.date)-new Date(a.date));
+    if(type=="oldest") expenses.sort((a,b)=> new Date(a.date)-new Date(b.date));
+    if(type=="high") expenses.sort((a,b)=> b.amount-a.amount);
+    if(type=="low") expenses.sort((a,b)=> a.amount-b.amount);
+    updateAll();
+    }
 //-------remove expansion ---------
 function removeExpense(index){
     expenses.splice(index,1);
     localStorage.setItem("gulData",JSON.stringify(expenses));
     updateAll();
 }
-    
+//-----    edit exp-------
+    function editExpense(index){
+    let newAmount = prompt("Enter new amount:", expenses[index].amount);
+    if(newAmount !== null){
+        expenses[index].amount = parseFloat(newAmount);
+        localStorage.setItem("gulData",JSON.stringify(expenses));
+        updateAll();
+    }
+    }
 // -------- UPDATE ALL --------
 function updateAll(){
     updateStats();
