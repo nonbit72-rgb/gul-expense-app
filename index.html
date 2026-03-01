@@ -6,7 +6,12 @@
 <meta name="theme-color" content="#0f172a">
 <title>GUL Advanced Expense App</title>
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-
+<link rel="manifest" href="manifest.json">
+    <script>
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('service-worker.js');
+}
+    </script>
 <style>
 body{
     background:#0f172a;
