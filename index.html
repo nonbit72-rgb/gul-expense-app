@@ -173,7 +173,17 @@ let monthlyBudget = localStorage.getItem("budget") || 0;
 function showSection(sectionId){
   let sections = document.querySelectorAll(".section");
   sections.forEach(sec => sec.style.display = "none");
+
   document.getElementById(sectionId).style.display = "block";
+
+  // Fix chart resizing when section becomes visible
+  setTimeout(() => {
+    if(sectionId === "budgetSection"){
+      lineChart.resize();
+      pieChart.resize();
+      updateCharts();
+    }
+  }, 200);
 }
 
 // -------- BUDGET --------
