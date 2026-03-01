@@ -153,156 +153,169 @@ canvas{
 
 <script>
 
+/* =========================================================
+   =============== GLOBAL VARIABLES SECTION ================
+========================================================= */
+
 let expenses = JSON.parse(localStorage.getItem("gulData")) || [];
 let monthlyBudget = localStorage.getItem("budget") || 0;
+
+
+/* =========================================================
+   =============== NAVIGATION SECTION ======================
+========================================================= */
 
 function showSection(sectionId){
   document.querySelectorAll(".section").forEach(sec => sec.style.display="none");
   document.getElementById(sectionId).style.display="block";
-
-  setTimeout(()=>{
-    if(sectionId==="budgetSection"){
-      lineChart.resize();
-      pieChart.resize();
-      updateCharts();
-    }
-  },200);
 }
 
+
+/* =========================================================
+   =============== BUDGET SECTION ==========================
+========================================================= */
+
 function setBudget(){
-  monthlyBudget=parseFloat(document.getElementById("monthlyBudget").value);
+  monthlyBudget = parseFloat(document.getElementById("monthlyBudget").value) || 0;
   localStorage.setItem("budget",monthlyBudget);
   updateBudget();
 }
 
 function updateBudget(){
-  let total=expenses.reduce((s,e)=>s+e.amount,0);
-  let remaining=monthlyBudget-total;
-  let info=document.getElementById("budgetInfo");
-  info.innerHTML=`Budget: ₹${monthlyBudget}<br>Remaining: ₹${remaining}`;
-  info.style.color=total>monthlyBudget?"red":"#e2e8f0";
+  let total = getTotal();
+  let remaining = monthlyBudget - total;
+  let info = document.getElementById("budgetInfo");
+
+  info.innerHTML = `
+    Budget: ₹${monthlyBudget}<br>
+    Remaining: ₹${remaining}
+  `;
+
+  info.style.color = total > monthlyBudget ? "red" : "#22c55e";
 }
 
+
+/* =========================================================
+   =============== EXPENSE SECTION =========================
+========================================================= */
+
 function addExpense(){
-  let cat=document.getElementById("category").value;
-  let amt=parseFloat(document.getElementById("amount").value);
+  let cat = document.getElementById("category").value;
+  let amt = parseFloat(document.getElementById("amount").value);
+
   if(!amt) return;
-  expenses.push({category:cat,amount:amt,date:new Date().toISOString()});
+
+  expenses.push({
+    category:cat,
+    amount:amt,
+    date:new Date().toISOString()
+  });
+
   localStorage.setItem("gulData",JSON.stringify(expenses));
   document.getElementById("amount").value="";
   updateAll();
 }
 
-function updateStats(){
-    let total = expenses.reduce((sum,e)=>sum+e.amount,0);
-    let now = new Date();
-
-    let firstDate = expenses.length ? new Date(expenses[0].date) : now;
-    let diffTime = now - firstDate;
-
-    let days = Math.max(1, diffTime / (1000*60*60*24));
-    let months = Math.max(1, days / 30);
-    let hours = Math.max(1, diffTime / (1000*60*60));
-    let minutes = Math.max(1, diffTime / (1000*60));
-
-    document.getElementById("total").innerText =
-        "Total Spending: ₹" + total.toFixed(2);
-
-    document.getElementById("avgMonth").innerText =
-        "Average Per Month: ₹" + (total/months).toFixed(2);
-
-    document.getElementById("avgDay").innerText =
-        "Average Per Day: ₹" + (total/days).toFixed(2);
-
-    document.getElementById("avgHour").innerText =
-        "Average Per Hour: ₹" + (total/hours).toFixed(2);
-
-    document.getElementById("avgMinute").innerText =
-        "Average Per Minute: ₹" + (total/minutes).toFixed(4);
-
-    document.getElementById("time").innerText =
-        "Current Time (IST): " +
-        now.toLocaleString("en-IN",{timeZone:"Asia/Kolkata",hour12:false});
+function getTotal(){
+  return expenses.reduce((sum,e)=>sum+e.amount,0);
 }
 
-function getDailyData(){
-  let map={};
-  expenses.forEach(e=>{
-    let d=new Date(e.date).toLocaleDateString("en-CA");
-    map[d]=(map[d]||0)+e.amount;
-  });
-  return map;
+
+/* =========================================================
+   =============== STOCK STYLE HOME SECTION =================
+========================================================= */
+
+let previousTotal = 0;
+
+function updateHomeLive(){
+
+  let total = getTotal();
+  let now = new Date();
+
+  let change = total - previousTotal;
+  let arrow = change >= 0 ? "▲" : "▼";
+  let color = change >= 0 ? "#22c55e" : "#ef4444";
+
+  document.getElementById("total").innerHTML =
+    `Total Spending: ₹${total.toFixed(2)}
+     <span style="color:${color}; font-weight:bold;">
+     ${arrow} ${Math.abs(change).toFixed(2)}
+     </span>`;
+
+  document.getElementById("time").innerHTML =
+    "Market Time (IST): " +
+    now.toLocaleTimeString("en-IN",{hour12:false});
+
+  previousTotal = total;
 }
 
-function getCategoryData(){
-  let map={};
-  expenses.forEach(e=>{
-    map[e.category]=(map[e.category]||0)+e.amount;
-  });
-  return map;
-}
 
-let lineChart=new Chart(document.getElementById("lineChart"),{
-  type:'line',
-  data:{labels:[],datasets:[{label:'Daily Spending',data:[],borderColor:'#3b82f6',fill:false}]},
-  options:{animation:false,responsive:true}
-});
-
-let pieChart=new Chart(document.getElementById("pieChart"),{
-  type:'pie',
-  data:{labels:[],datasets:[{data:[]}]},
-  options:{animation:false,responsive:true}
-});
-
-function updateCharts(){
-  let daily=getDailyData();
-  lineChart.data.labels=Object.keys(daily);
-  lineChart.data.datasets[0].data=Object.values(daily);
-  lineChart.update();
-
-  let cat=getCategoryData();
-  pieChart.data.labels=Object.keys(cat);
-  pieChart.data.datasets[0].data=Object.values(cat);
-  pieChart.update();
-}
+/* =========================================================
+   =============== LIST SECTION ============================
+========================================================= */
 
 function renderExpenseList(){
   let container=document.getElementById("expenseList");
   container.innerHTML="";
+
   expenses.forEach(e=>{
     let div=document.createElement("div");
     div.style.background="#0f172a";
     div.style.padding="8px";
     div.style.margin="5px 0";
     div.style.borderRadius="8px";
-    div.innerHTML=`<strong>${e.category}</strong> - ₹${e.amount.toFixed(2)}`;
+
+    div.innerHTML=`
+      <strong>${e.category}</strong> 
+      - ₹${e.amount.toFixed(2)}
+    `;
+
     container.appendChild(div);
   });
 }
+
+
+/* =========================================================
+   =============== SORT SECTION ============================
+========================================================= */
 
 function sortExpenses(type){
   if(type=="latest") expenses.sort((a,b)=>new Date(b.date)-new Date(a.date));
   if(type=="oldest") expenses.sort((a,b)=>new Date(a.date)-new Date(b.date));
   if(type=="high") expenses.sort((a,b)=>b.amount-a.amount);
   if(type=="low") expenses.sort((a,b)=>a.amount-b.amount);
+
   updateAll();
 }
 
+
+/* =========================================================
+   =============== MASTER UPDATE ===========================
+========================================================= */
+
 function updateAll(){
-  updateStats();
-  updateCharts();
   renderExpenseList();
   updateBudget();
+  updateHomeLive();
 }
 
-updateAll();
 
-// 🔥 LIVE HOME UPDATE EVERY 1 MINUTE
+/* =========================================================
+   =============== LIVE UPDATE EVERY SECOND =================
+========================================================= */
+
 setInterval(function(){
-    if(document.getElementById("homeSection").style.display !== "none"){
-        updateStats();
-    }
-},60000);
+  if(document.getElementById("homeSection").style.display !== "none"){
+    updateHomeLive();
+  }
+},1000);
+
+
+/* =========================================================
+   =============== INITIAL LOAD ============================
+========================================================= */
+
+updateAll();
 
 </script>
 </body>
