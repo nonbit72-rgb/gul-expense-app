@@ -154,11 +154,14 @@ canvas{
 <script>
 
 /* =========================================================
-   =============== GLOBAL VARIABLES SECTION ================
+   =============== GLOBAL VARIABLES ========================
 ========================================================= */
 
 let expenses = JSON.parse(localStorage.getItem("gulData")) || [];
 let monthlyBudget = localStorage.getItem("budget") || 0;
+let previousTotal = 0;
+let stockChart;
+let stockData = [];
 
 
 /* =========================================================
@@ -202,7 +205,6 @@ function updateBudget(){
 function addExpense(){
   let cat = document.getElementById("category").value;
   let amt = parseFloat(document.getElementById("amount").value);
-
   if(!amt) return;
 
   expenses.push({
@@ -222,10 +224,8 @@ function getTotal(){
 
 
 /* =========================================================
-   =============== STOCK STYLE HOME SECTION =================
+   =============== STOCK STYLE HOME ========================
 ========================================================= */
-
-let previousTotal = 0;
 
 function updateHomeLive(){
 
@@ -247,6 +247,63 @@ function updateHomeLive(){
     now.toLocaleTimeString("en-IN",{hour12:false});
 
   previousTotal = total;
+
+  updateMiniStockChart(total);
+}
+
+
+/* =========================================================
+   =============== MINI STOCK CHART ========================
+========================================================= */
+
+function initMiniChart(){
+  const ctx = document.createElement("canvas");
+  ctx.id = "miniStockChart";
+  ctx.height = 100;
+
+  document.querySelector("#homeSection .card").appendChild(ctx);
+
+  stockChart = new Chart(ctx, {
+    type: "line",
+    data: {
+      labels: [],
+      datasets: [{
+        data: [],
+        borderColor: "#22c55e",
+        borderWidth: 2,
+        tension: 0.4,
+        fill: false,
+        pointRadius: 0
+      }]
+    },
+    options: {
+      responsive: true,
+      plugins: { legend: { display:false }},
+      scales: {
+        x: { display:false },
+        y: { display:false }
+      }
+    }
+  });
+}
+
+function updateMiniStockChart(value){
+
+  if(!stockChart) return;
+
+  let timeLabel = new Date().toLocaleTimeString();
+
+  stockData.push(value);
+  stockChart.data.labels.push(timeLabel);
+  stockChart.data.datasets[0].data.push(value);
+
+  if(stockData.length > 20){
+    stockData.shift();
+    stockChart.data.labels.shift();
+    stockChart.data.datasets[0].data.shift();
+  }
+
+  stockChart.update();
 }
 
 
@@ -315,6 +372,7 @@ setInterval(function(){
    =============== INITIAL LOAD ============================
 ========================================================= */
 
+initMiniChart();
 updateAll();
 
 </script>
