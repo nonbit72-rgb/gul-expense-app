@@ -159,9 +159,10 @@ canvas{
 
 let expenses = JSON.parse(localStorage.getItem("gulData")) || [];
 let monthlyBudget = localStorage.getItem("budget") || 0;
+
 let previousTotal = 0;
 let stockChart;
-let stockData = [];
+let stockValues = [];
 
 
 /* =========================================================
@@ -187,8 +188,8 @@ function setBudget(){
 function updateBudget(){
   let total = getTotal();
   let remaining = monthlyBudget - total;
-  let info = document.getElementById("budgetInfo");
 
+  let info = document.getElementById("budgetInfo");
   info.innerHTML = `
     Budget: ₹${monthlyBudget}<br>
     Remaining: ₹${remaining}
@@ -224,46 +225,18 @@ function getTotal(){
 
 
 /* =========================================================
-   =============== STOCK STYLE HOME ========================
-========================================================= */
-
-function updateHomeLive(){
-
-  let total = getTotal();
-  let now = new Date();
-
-  let change = total - previousTotal;
-  let arrow = change >= 0 ? "▲" : "▼";
-  let color = change >= 0 ? "#22c55e" : "#ef4444";
-
-  document.getElementById("total").innerHTML =
-    `Total Spending: ₹${total.toFixed(2)}
-     <span style="color:${color}; font-weight:bold;">
-     ${arrow} ${Math.abs(change).toFixed(2)}
-     </span>`;
-
-  document.getElementById("time").innerHTML =
-    "Market Time (IST): " +
-    now.toLocaleTimeString("en-IN",{hour12:false});
-
-  previousTotal = total;
-
-  updateMiniStockChart(total);
-}
-
-
-/* =========================================================
-   =============== MINI STOCK CHART ========================
+   =============== MINI STOCK CHART INIT ===================
 ========================================================= */
 
 function initMiniChart(){
-  const ctx = document.createElement("canvas");
-  ctx.id = "miniStockChart";
-  ctx.height = 100;
 
-  document.querySelector("#homeSection .card").appendChild(ctx);
+  const canvas = document.createElement("canvas");
+  canvas.id = "miniStockChart";
+  canvas.height = 80;
 
-  stockChart = new Chart(ctx, {
+  document.querySelector("#homeSection .card").appendChild(canvas);
+
+  stockChart = new Chart(canvas, {
     type: "line",
     data: {
       labels: [],
@@ -277,28 +250,88 @@ function initMiniChart(){
       }]
     },
     options: {
-      responsive: true,
-      plugins: { legend: { display:false }},
-      scales: {
-        x: { display:false },
-        y: { display:false }
+      responsive:true,
+      plugins:{ legend:{display:false}},
+      scales:{
+        x:{display:false},
+        y:{display:false}
       }
     }
   });
 }
 
-function updateMiniStockChart(value){
+
+/* =========================================================
+   =============== HOME LIVE UPDATE ========================
+========================================================= */
+
+function updateHomeLive(){
+
+  let total = getTotal();
+  let now = new Date();
+
+  /* ---- STOCK CHANGE INDICATOR ---- */
+
+  let change = total - previousTotal;
+  let arrow = change >= 0 ? "▲" : "▼";
+  let color = change >= 0 ? "#22c55e" : "#ef4444";
+
+  document.getElementById("total").innerHTML =
+    `Total Spending: ₹${total.toFixed(2)}
+     <span style="color:${color};font-weight:bold;">
+     ${arrow} ${Math.abs(change).toFixed(2)}
+     </span>`;
+
+  document.getElementById("time").innerHTML =
+    "Market Time (IST): " +
+    now.toLocaleTimeString("en-IN",{hour12:false});
+
+
+  /* ---- AVERAGE CALCULATIONS ---- */
+
+  let months = 1;
+  let days = 30;
+  let hours = days * 24;
+  let minutes = hours * 60;
+
+  document.getElementById("avgMonth").innerHTML =
+    "Average / Month: ₹" + (total/months).toFixed(2);
+
+  document.getElementById("avgDay").innerHTML =
+    "Average / Day: ₹" + (total/days).toFixed(2);
+
+  document.getElementById("avgHour").innerHTML =
+    "Average / Hour: ₹" + (total/hours).toFixed(4);
+
+  document.getElementById("avgMinute").innerHTML =
+    "Average / Minute: ₹" + (total/minutes).toFixed(6);
+
+
+  /* ---- MINI STOCK CHART UPDATE ---- */
+
+  updateMiniChart(total);
+
+  previousTotal = total;
+}
+
+
+/* =========================================================
+   =============== MINI STOCK CHART UPDATE =================
+========================================================= */
+
+function updateMiniChart(value){
 
   if(!stockChart) return;
 
   let timeLabel = new Date().toLocaleTimeString();
 
-  stockData.push(value);
+  stockValues.push(value);
+
   stockChart.data.labels.push(timeLabel);
   stockChart.data.datasets[0].data.push(value);
 
-  if(stockData.length > 20){
-    stockData.shift();
+  if(stockValues.length > 20){
+    stockValues.shift();
     stockChart.data.labels.shift();
     stockChart.data.datasets[0].data.shift();
   }
@@ -308,14 +341,18 @@ function updateMiniStockChart(value){
 
 
 /* =========================================================
-   =============== LIST SECTION ============================
+   =============== EXPENSE LIST ============================
 ========================================================= */
 
 function renderExpenseList(){
   let container=document.getElementById("expenseList");
   container.innerHTML="";
 
+  let search = document.getElementById("searchInput").value.toLowerCase();
+
   expenses.forEach(e=>{
+    if(!e.category.toLowerCase().includes(search)) return;
+
     let div=document.createElement("div");
     div.style.background="#0f172a";
     div.style.padding="8px";
