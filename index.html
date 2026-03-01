@@ -92,8 +92,31 @@ canvas{
 <h3>Expense List</h3>
 <div id="expenseList"></div>
 </div>
+    <input type="number" id="monthlyBudget" placeholder="Set Monthly Budget">
+<button onclick="setBudget()">Set Budget</button>
+<div id="budgetInfo"></div>
 <script>
+//-----budget-------
+    let monthlyBudget = localStorage.getItem("budget") || 0;
 
+function setBudget(){
+    monthlyBudget = parseFloat(document.getElementById("monthlyBudget").value);
+    localStorage.setItem("budget",monthlyBudget);
+    updateBudget();
+}
+
+function updateBudget(){
+    let total = expenses.reduce((sum,e)=>sum+e.amount,0);
+    let remaining = monthlyBudget - total;
+
+    document.getElementById("budgetInfo").innerHTML = 
+    `Budget: ₹${monthlyBudget} <br>
+     Remaining: ₹${remaining}`;
+
+    if(total > monthlyBudget){
+        document.getElementById("budgetInfo").style.color="red";
+    }
+}
 // -------- DATA --------
 let expenses = JSON.parse(localStorage.getItem("gulData")) || [];
 
