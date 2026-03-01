@@ -11,79 +11,35 @@
 
 <script>
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('service-worker.js');
+  navigator.serviceWorker.register('service-worker.js').then(reg => {
+
+    // 🔥 Detect new updates on GitHub
+    reg.onupdatefound = () => {
+      const newWorker = reg.installing;
+      newWorker.onstatechange = () => {
+        if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+          alert("New version available. Please refresh.");
+        }
+      };
+    };
+
+  });
 }
 </script>
 
 <style>
-body{
-    background:#0f172a;
-    color:#e2e8f0;
-    font-family:Arial;
-    padding:15px;
-    margin:0;
-}
+body{background:#0f172a;color:#e2e8f0;font-family:Arial;padding:15px;margin:0;}
 h1{text-align:center;}
-
-.card{
-    background:#1e293b;
-    padding:15px;
-    margin:10px 0;
-    border-radius:10px;
-}
-
-input,select,button{
-    padding:10px;
-    margin:5px 0;
-    border-radius:5px;
-    border:none;
-    width:100%;
-}
-
-button{
-    background:#3b82f6;
-    color:white;
-}
-
-button:hover{ background:#2563eb; }
-
-canvas{
-    background:#111827;
-    border-radius:10px;
-}
-
-.stat{
-    font-size:16px;
-    margin:5px 0;
-}
-
-/* Sections */
-.section{
-  margin-bottom:80px;
-}
-
-/* Bottom Navigation */
-.bottomNav{
-  position:fixed;
-  bottom:0;
-  left:0;
-  width:100%;
-  background:#1e293b;
-  display:flex;
-  justify-content:space-around;
-  padding:10px 0;
-}
-
-.bottomNav button{
-  background:none;
-  color:#e2e8f0;
-  border:none;
-  font-size:14px;
-}
-
-.bottomNav button:hover{
-  color:#3b82f6;
-}
+.card{background:#1e293b;padding:15px;margin:10px 0;border-radius:10px;}
+input,select,button{padding:10px;margin:5px 0;border-radius:5px;border:none;width:100%;}
+button{background:#3b82f6;color:white;}
+button:hover{background:#2563eb;}
+canvas{background:#111827;border-radius:10px;}
+.stat{font-size:16px;margin:5px 0;}
+.section{margin-bottom:80px;}
+.bottomNav{position:fixed;bottom:0;left:0;width:100%;background:#1e293b;display:flex;justify-content:space-around;padding:10px 0;}
+.bottomNav button{background:none;color:#e2e8f0;border:none;font-size:14px;}
+.bottomNav button:hover{color:#3b82f6;}
 </style>
 </head>
 
@@ -91,7 +47,6 @@ canvas{
 
 <h1>GUL Expense Manager</h1>
 
-<!-- -------- SECTION 1: HOME -------- -->
 <div id="homeSection" class="section">
   <div class="card">
     <div class="stat" id="time"></div>
@@ -102,7 +57,6 @@ canvas{
   </div>
 </div>
 
-<!-- -------- SECTION 2: BUDGET -------- -->
 <div id="budgetSection" class="section" style="display:none;">
   <div class="card">
     <h3>Monthly Budget</h3>
@@ -110,17 +64,10 @@ canvas{
     <button onclick="setBudget()">Set Budget</button>
     <div id="budgetInfo"></div>
   </div>
-
-  <div class="card">
-    <canvas id="lineChart"></canvas>
-  </div>
-
-  <div class="card">
-    <canvas id="pieChart"></canvas>
-  </div>
+  <div class="card"><canvas id="lineChart"></canvas></div>
+  <div class="card"><canvas id="pieChart"></canvas></div>
 </div>
 
-<!-- -------- SECTION 3: ADD EXPENSE -------- -->
 <div id="addSection" class="section" style="display:none;">
   <div class="card">
     <select id="category">
@@ -130,14 +77,11 @@ canvas{
       <option>College Expense</option>
       <option>Other</option>
     </select>
-
     <input type="number" id="amount" placeholder="Enter Amount">
     <button onclick="addExpense()">Add Expense</button>
-    <button onclick="exportCSV()">Export CSV</button>
   </div>
 </div>
 
-<!-- -------- SECTION 4: EXPENSE LIST -------- -->
 <div id="listSection" class="section" style="display:none;">
   <div class="card">
     <select onchange="sortExpenses(this.value)">
@@ -146,16 +90,11 @@ canvas{
       <option value="high">Highest</option>
       <option value="low">Lowest</option>
     </select>
-
-    <input type="text" id="searchInput" 
-    placeholder="Search expenses..." 
-    onkeyup="renderExpenseList()">
-
+    <input type="text" id="searchInput" placeholder="Search expenses..." onkeyup="renderExpenseList()">
     <div id="expenseList"></div>
   </div>
 </div>
 
-<!-- -------- BOTTOM NAVIGATION -------- -->
 <div class="bottomNav">
   <button onclick="showSection('homeSection')">Home</button>
   <button onclick="showSection('budgetSection')">Budget</button>
@@ -165,189 +104,132 @@ canvas{
 
 <script>
 
-// -------- DATA --------
 let expenses = JSON.parse(localStorage.getItem("gulData")) || [];
 let monthlyBudget = localStorage.getItem("budget") || 0;
 
-// -------- SECTION SWITCH --------
 function showSection(sectionId){
-  let sections = document.querySelectorAll(".section");
-  sections.forEach(sec => sec.style.display = "none");
+  document.querySelectorAll(".section").forEach(sec => sec.style.display="none");
+  document.getElementById(sectionId).style.display="block";
 
-  document.getElementById(sectionId).style.display = "block";
-
-  // Fix chart resizing when section becomes visible
-  setTimeout(() => {
-    if(sectionId === "budgetSection"){
+  setTimeout(()=>{
+    if(sectionId==="budgetSection"){
       lineChart.resize();
       pieChart.resize();
       updateCharts();
     }
-  }, 200);
+  },200);
 }
 
-// -------- BUDGET --------
 function setBudget(){
-    monthlyBudget = parseFloat(document.getElementById("monthlyBudget").value);
-    localStorage.setItem("budget",monthlyBudget);
-    updateBudget();
+  monthlyBudget=parseFloat(document.getElementById("monthlyBudget").value);
+  localStorage.setItem("budget",monthlyBudget);
+  updateBudget();
 }
 
 function updateBudget(){
-    let total = expenses.reduce((sum,e)=>sum+e.amount,0);
-    let remaining = monthlyBudget - total;
-
-    let info = document.getElementById("budgetInfo");
-    info.innerHTML = `Budget: ₹${monthlyBudget}<br>Remaining: ₹${remaining}`;
-    info.style.color = total > monthlyBudget ? "red" : "#e2e8f0";
+  let total=expenses.reduce((s,e)=>s+e.amount,0);
+  let remaining=monthlyBudget-total;
+  let info=document.getElementById("budgetInfo");
+  info.innerHTML=`Budget: ₹${monthlyBudget}<br>Remaining: ₹${remaining}`;
+  info.style.color=total>monthlyBudget?"red":"#e2e8f0";
 }
 
-// -------- ADD EXPENSE --------
 function addExpense(){
-    let cat = document.getElementById("category").value;
-    let amt = parseFloat(document.getElementById("amount").value);
-    if(!amt) return;
-
-    expenses.push({
-        category:cat,
-        amount:amt,
-        date:new Date().toISOString()
-    });
-
-    localStorage.setItem("gulData",JSON.stringify(expenses));
-    document.getElementById("amount").value="";
-    updateAll();
+  let cat=document.getElementById("category").value;
+  let amt=parseFloat(document.getElementById("amount").value);
+  if(!amt) return;
+  expenses.push({category:cat,amount:amt,date:new Date().toISOString()});
+  localStorage.setItem("gulData",JSON.stringify(expenses));
+  document.getElementById("amount").value="";
+  updateAll();
 }
 
-// -------- STATS --------
 function updateStats(){
-    let total = expenses.reduce((sum,e)=>sum+e.amount,0);
-    let now = new Date();
-
-    let firstDate = expenses.length ? new Date(expenses[0].date) : now;
-    let diffTime = now - firstDate;
-
-    let days = Math.max(1, Math.floor(diffTime / (1000*60*60*24)) + 1);
-    let months = Math.max(1, Math.floor(days/30));
-    let minutes = Math.max(1, Math.floor(diffTime / (1000*60)));
-
-    document.getElementById("total").innerText =
-        "Total Spending: ₹"+total.toFixed(2);
-
-    document.getElementById("avgDay").innerText =
-        "Average Per Day: ₹"+(total/days).toFixed(2);
-
-    document.getElementById("avgMonth").innerText =
-        "Average Per Month: ₹"+(total/months).toFixed(2);
-
-    document.getElementById("avgMinute").innerText =
-        "Average Per Minute: ₹"+(total/minutes).toFixed(4);
-
-    document.getElementById("time").innerText =
-        "Current Time (IST): " +
-        now.toLocaleString("en-IN",{timeZone:"Asia/Kolkata",hour12:false});
+  let total=expenses.reduce((s,e)=>s+e.amount,0);
+  let now=new Date();
+  let firstDate=expenses.length?new Date(expenses[0].date):now;
+  let diff=now-firstDate;
+  let days=Math.max(1,Math.floor(diff/(1000*60*60*24))+1);
+  document.getElementById("total").innerText="Total Spending: ₹"+total.toFixed(2);
+  document.getElementById("avgDay").innerText="Average Per Day: ₹"+(total/days).toFixed(2);
+  document.getElementById("time").innerText="Current Time (IST): "+now.toLocaleString("en-IN",{timeZone:"Asia/Kolkata",hour12:false});
 }
 
-// -------- CHARTS --------
 function getDailyData(){
-    let map={};
-    expenses.forEach(e=>{
-        let d = new Date(e.date).toLocaleDateString("en-CA");
-        map[d] = (map[d]||0)+e.amount;
-    });
-    return map;
+  let map={};
+  expenses.forEach(e=>{
+    let d=new Date(e.date).toLocaleDateString("en-CA");
+    map[d]=(map[d]||0)+e.amount;
+  });
+  return map;
 }
 
 function getCategoryData(){
-    let map={};
-    expenses.forEach(e=>{
-        map[e.category] = (map[e.category]||0)+e.amount;
-    });
-    return map;
+  let map={};
+  expenses.forEach(e=>{
+    map[e.category]=(map[e.category]||0)+e.amount;
+  });
+  return map;
 }
 
-let lineChart = new Chart(document.getElementById("lineChart"),{
-type:'line',
-data:{labels:[],datasets:[{label:'Daily Spending',data:[],borderColor:'#3b82f6',fill:false}]},
-options:{animation:false,responsive:true}
+let lineChart=new Chart(document.getElementById("lineChart"),{
+  type:'line',
+  data:{labels:[],datasets:[{label:'Daily Spending',data:[],borderColor:'#3b82f6'}]},
+  options:{animation:false,responsive:true}
 });
 
-let pieChart = new Chart(document.getElementById("pieChart"),{
-type:'pie',
-data:{labels:[],datasets:[{data:[]}]},
-options:{animation:false,responsive:true}
+let pieChart=new Chart(document.getElementById("pieChart"),{
+  type:'pie',
+  data:{labels:[],datasets:[{data:[]}]},
+  options:{animation:false,responsive:true}
 });
 
 function updateCharts(){
-    let daily = getDailyData();
-    lineChart.data.labels = Object.keys(daily);
-    lineChart.data.datasets[0].data = Object.values(daily);
-    lineChart.update();
+  let daily=getDailyData();
+  lineChart.data.labels=Object.keys(daily);
+  lineChart.data.datasets[0].data=Object.values(daily);
+  lineChart.update();
 
-    let cat = getCategoryData();
-    pieChart.data.labels = Object.keys(cat);
-    pieChart.data.datasets[0].data = Object.values(cat);
-    pieChart.update();
+  let cat=getCategoryData();
+  pieChart.data.labels=Object.keys(cat);
+  pieChart.data.datasets[0].data=Object.values(cat);
+  pieChart.update();
 }
 
-// -------- LIST --------
 function renderExpenseList(){
-    let container = document.getElementById("expenseList");
-    container.innerHTML="";
-    let search=document.getElementById("searchInput").value.toLowerCase();
-
-    expenses.forEach((e,index)=>{
-        if(e.category.toLowerCase().includes(search) ||
-           e.amount.toString().includes(search)){
-
-            let div=document.createElement("div");
-            div.style.background="#0f172a";
-            div.style.padding="8px";
-            div.style.margin="5px 0";
-            div.style.borderRadius="8px";
-
-            let date=new Date(e.date).toLocaleString("en-IN",
-                {timeZone:"Asia/Kolkata",hour12:false});
-
-            div.innerHTML=`
-                <strong>${e.category}</strong> - ₹${e.amount.toFixed(2)}<br>
-                <small>${date}</small>
-            `;
-
-            container.appendChild(div);
-        }
-    });
+  let container=document.getElementById("expenseList");
+  container.innerHTML="";
+  expenses.forEach(e=>{
+    let div=document.createElement("div");
+    div.style.background="#0f172a";
+    div.style.padding="8px";
+    div.style.margin="5px 0";
+    div.style.borderRadius="8px";
+    div.innerHTML=`<strong>${e.category}</strong> - ₹${e.amount.toFixed(2)}`;
+    container.appendChild(div);
+  });
 }
 
 function sortExpenses(type){
-    if(type=="latest") expenses.sort((a,b)=>new Date(b.date)-new Date(a.date));
-    if(type=="oldest") expenses.sort((a,b)=>new Date(a.date)-new Date(b.date));
-    if(type=="high") expenses.sort((a,b)=>b.amount-a.amount);
-    if(type=="low") expenses.sort((a,b)=>a.amount-b.amount);
-    updateAll();
+  if(type=="latest") expenses.sort((a,b)=>new Date(b.date)-new Date(a.date));
+  if(type=="oldest") expenses.sort((a,b)=>new Date(a.date)-new Date(b.date));
+  if(type=="high") expenses.sort((a,b)=>b.amount-a.amount);
+  if(type=="low") expenses.sort((a,b)=>a.amount-b.amount);
+  updateAll();
 }
 
-// -------- UPDATE ALL --------
 function updateAll(){
-    updateStats();
-    updateCharts();
-    renderExpenseList();
-    updateBudget();
+  updateStats();
+  updateCharts();
+  renderExpenseList();
+  updateBudget();
 }
 
-// -------- SMART CLOCK --------
 updateAll();
 let clockInterval;
-function startClock(){
-    clockInterval = setInterval(updateStats, 3600000);
-}
-function stopClock(){
-    clearInterval(clockInterval);
-}
-document.addEventListener("visibilitychange", function(){
-    if(document.hidden){ stopClock(); }
-    else{ updateStats(); startClock(); }
-});
+function startClock(){clockInterval=setInterval(updateStats,3600000);}
+function stopClock(){clearInterval(clockInterval);}
+document.addEventListener("visibilitychange",()=>{document.hidden?stopClock():startClock();});
 startClock();
 
 </script>
