@@ -10,74 +10,21 @@
 <link rel="manifest" href="manifest.json">
 
 <script>
-if ('serviceWorker' in navigator) {
+if ('serviceWorker' in navigator') {
   navigator.serviceWorker.register('service-worker.js');
 }
 </script>
 
 <style>
-body{
-    background:#0f172a;
-    color:#e2e8f0;
-    font-family:Arial;
-    padding:15px;
-    margin:0;
-}
+body{background:#0f172a;color:#e2e8f0;font-family:Arial;padding:15px;margin:0;}
 h1{text-align:center;}
-
-.card{
-    background:#1e293b;
-    padding:15px;
-    margin:10px 0;
-    border-radius:10px;
-}
-
-input,select,button{
-    padding:10px;
-    margin:5px 0;
-    border-radius:5px;
-    border:none;
-    width:100%;
-}
-
-button{
-    background:#3b82f6;
-    color:white;
-    cursor:pointer;
-}
-
-button:hover{ background:#2563eb; }
-
-.stat{
-    margin:5px 0;
-}
-
-.section{ margin-bottom:80px; }
-
-.bottomNav{
-  position:fixed;
-  bottom:0;
-  left:0;
-  width:100%;
-  background:#1e293b;
-  display:flex;
-  justify-content:space-around;
-  padding:10px 0;
-}
-
-.bottomNav button{
-  background:none;
-  color:#e2e8f0;
-  font-size:14px;
-}
-.bottomNav button:hover{ color:#3b82f6; }
-
-.expenseItem{
-  background:#0f172a;
-  padding:10px;
-  margin:5px 0;
-  border-radius:8px;
-}
+.card{background:#1e293b;padding:15px;margin:10px 0;border-radius:10px;}
+input,select,button{padding:8px;margin:5px 0;border-radius:5px;border:none;width:100%;}
+button{background:#3b82f6;color:white;cursor:pointer;}
+.section{margin-bottom:90px;}
+.bottomNav{position:fixed;bottom:0;left:0;width:100%;background:#1e293b;display:flex;justify-content:space-around;padding:10px 0;}
+.bottomNav button{background:none;color:#e2e8f0;}
+.expenseItem{background:#0f172a;padding:10px;margin:5px 0;border-radius:8px;}
 </style>
 </head>
 
@@ -85,20 +32,34 @@ button:hover{ background:#2563eb; }
 
 <h1>GUL Expense Manager</h1>
 
-<!-- ================= HOME ================= -->
+<!-- HOME -->
 <div id="homeSection" class="section">
   <div class="card">
-    <div class="stat" id="time"></div>
-    <div class="stat" id="total"></div>
-    <div class="stat" id="avgMonth"></div>
-    <div class="stat" id="avgDay"></div>
-    <div class="stat" id="avgHour"></div>
-    <div class="stat" id="avgMinute"></div>
+    <div id="time"></div>
+    <div id="total"></div>
+    <div id="avgMonth"></div>
+    <div id="avgDay"></div>
+    <div id="avgHour"></div>
+    <div id="avgMinute"></div>
     <canvas id="miniChart" height="80"></canvas>
   </div>
 </div>
 
-<!-- ================= ADD ================= -->
+<!-- BUDGET -->
+<div id="budgetSection" class="section" style="display:none;">
+  <div class="card">
+    <h3>Monthly Budget</h3>
+    <input type="number" id="monthlyBudget" placeholder="Set Monthly Budget">
+    <button onclick="setBudget()">Set Budget</button>
+    <div id="budgetInfo"></div>
+  </div>
+
+  <div class="card"><canvas id="monthChart"></canvas></div>
+  <div class="card"><canvas id="categoryChart"></canvas></div>
+  <div class="card"><canvas id="weekChart"></canvas></div>
+</div>
+
+<!-- ADD -->
 <div id="addSection" class="section" style="display:none;">
   <div class="card">
     <select id="category">
@@ -108,7 +69,6 @@ button:hover{ background:#2563eb; }
       <option>College Expense</option>
       <option>Other</option>
     </select>
-
     <input type="number" id="amount" placeholder="Amount">
     <input type="text" id="description" placeholder="Description">
     <input type="datetime-local" id="customTime">
@@ -116,240 +76,202 @@ button:hover{ background:#2563eb; }
   </div>
 </div>
 
-<!-- ================= LIST ================= -->
+<!-- LIST -->
 <div id="listSection" class="section" style="display:none;">
   <div class="card">
-    <input type="text" id="searchInput" placeholder="Search (category, price, desc, time)" onkeyup="renderExpenses()">
+    <input type="text" id="searchInput" placeholder="Search..." onkeyup="renderExpenses()">
     <div id="expenseList"></div>
   </div>
 </div>
 
-<!-- ================= NAV ================= -->
 <div class="bottomNav">
   <button onclick="showSection('homeSection')">Home</button>
+  <button onclick="showSection('budgetSection')">Budget</button>
   <button onclick="showSection('addSection')">Add</button>
   <button onclick="showSection('listSection')">Expenses</button>
 </div>
 
 <script>
 
-/* ================= GLOBAL ================= */
-
+/* ========= GLOBAL ========= */
 let expenses = JSON.parse(localStorage.getItem("gulData")) || [];
+let monthlyBudget = parseFloat(localStorage.getItem("budget")) || 0;
 let previousTotal = 0;
-let chart;
-let chartData = [];
 
-/* ================= NAVIGATION ================= */
+let miniChart, monthChart, categoryChart, weekChart;
 
+/* ========= NAV ========= */
 function showSection(id){
-  document.querySelectorAll(".section").forEach(s=>s.style.display="none");
-  document.getElementById(id).style.display="block";
+ document.querySelectorAll(".section").forEach(s=>s.style.display="none");
+ document.getElementById(id).style.display="block";
 }
 
-/* ================= ADD EXPENSE ================= */
+/* ========= BUDGET ========= */
+function setBudget(){
+ monthlyBudget = parseFloat(document.getElementById("monthlyBudget").value)||0;
+ localStorage.setItem("budget",monthlyBudget);
+ updateBudgetUI();
+ renderBudgetCharts();
+}
 
+function updateBudgetUI(){
+ let avgs = calculateDynamicAverages();
+ let color = (avgs.avgMonth <= monthlyBudget) ? "#22c55e" : "#ef4444";
+ document.getElementById("budgetInfo").innerHTML =
+   `Budget: ₹${monthlyBudget}<br>
+    Avg Month: <span style="color:${color}">₹${avgs.avgMonth.toFixed(2)}</span>`;
+}
+
+/* ========= ADD ========= */
 function addExpense(){
-
-  let category = document.getElementById("category").value;
-  let amount = parseFloat(document.getElementById("amount").value);
-  let description = document.getElementById("description").value;
-  let customTime = document.getElementById("customTime").value;
-
-  if(!amount) return;
-
-  let finalTime = customTime ? new Date(customTime) : new Date();
-
-  expenses.push({
-    id: Date.now(),
-    category,
-    amount,
-    description,
-    date: finalTime.toISOString()
-  });
-
-  localStorage.setItem("gulData", JSON.stringify(expenses));
-  document.getElementById("amount").value="";
-  document.getElementById("description").value="";
-  document.getElementById("customTime").value="";
-
-  renderExpenses();
+ let category = category.value;
+ let amount = parseFloat(document.getElementById("amount").value);
+ let description = description.value;
+ let customTime = customTime.value;
+ if(!amount) return;
+ let finalTime = customTime ? new Date(customTime) : new Date();
+ expenses.push({id:Date.now(),category,amount,description,date:finalTime.toISOString()});
+ localStorage.setItem("gulData",JSON.stringify(expenses));
+ renderExpenses();
+ renderBudgetCharts();
 }
 
-/* ================= DELETE ================= */
-
-function deleteExpense(id){
-  expenses = expenses.filter(e=>e.id!==id);
-  localStorage.setItem("gulData", JSON.stringify(expenses));
-  renderExpenses();
-}
-
-/* ================= EDIT ================= */
-
-function editExpense(id){
-  let exp = expenses.find(e=>e.id===id);
-  if(!exp) return;
-
-  let newAmount = prompt("Edit Amount:", exp.amount);
-  let newDesc = prompt("Edit Description:", exp.description);
-
-  if(newAmount!==null) exp.amount = parseFloat(newAmount);
-  if(newDesc!==null) exp.description = newDesc;
-
-  localStorage.setItem("gulData", JSON.stringify(expenses));
-  renderExpenses();
-}
-
-/* ================= TOTAL ================= */
-
-function getTotal(){
-  return expenses.reduce((sum,e)=>sum+e.amount,0);
-}
-
-/* ================= ADVANCED AVERAGE LOGIC ================= */
-
+/* ========= ADVANCED AVERAGE (UNCHANGED LOGIC) ========= */
 function calculateDynamicAverages(){
-
-  let now = new Date();
-  let avgMonth=0, avgDay=0, avgHour=0, avgMinute=0;
-
-  expenses.forEach(e=>{
-
-    let expenseTime = new Date(e.date);
-    let diffMs = now - expenseTime;
-
-    let minutes = Math.max(1, Math.floor(diffMs/60000));
-    let hours   = Math.max(1, Math.floor(diffMs/3600000));
-    let days    = Math.max(1, Math.floor(diffMs/86400000));
-    let months  = Math.max(1, Math.floor(days/30.44));
-
-    avgMinute += e.amount / minutes;
-    avgHour   += e.amount / hours;
-    avgDay    += e.amount / days;
-    avgMonth  += e.amount / months;
-
-  });
-
-  return {avgMonth, avgDay, avgHour, avgMinute};
+ let now=new Date();
+ let avgMonth=0,avgDay=0,avgHour=0,avgMinute=0;
+ expenses.forEach(e=>{
+   let diff=now-new Date(e.date);
+   let m=Math.max(1,Math.floor(diff/60000));
+   let h=Math.max(1,Math.floor(diff/3600000));
+   let d=Math.max(1,Math.floor(diff/86400000));
+   let mo=Math.max(1,Math.floor(d/30.44));
+   avgMinute+=e.amount/m;
+   avgHour+=e.amount/h;
+   avgDay+=e.amount/d;
+   avgMonth+=e.amount/mo;
+ });
+ return {avgMonth,avgDay,avgHour,avgMinute};
 }
 
-/* ================= HOME LIVE ================= */
-
+/* ========= HOME ========= */
 function updateHome(){
+ let now=new Date();
+ let total=expenses.reduce((s,e)=>s+e.amount,0);
+ let change=total-previousTotal;
 
-  let now = new Date();
-  let total = getTotal();
+ let color=change>0?"#ef4444":"#22c55e";
+ document.getElementById("total").innerHTML=
+   `Total ₹${total.toFixed(2)}
+    <span style="color:${color}">
+    ${change>=0?"▲":"▼"} ${Math.abs(change).toFixed(2)}</span>`;
+ document.getElementById("time").innerHTML=now.toLocaleTimeString();
 
-  let change = total - previousTotal;
-  let arrow = change>=0 ? "▲" : "▼";
-  let color = change>=0 ? "#22c55e" : "#ef4444";
+ let avgs=calculateDynamicAverages();
+ avgMonth.innerHTML="Avg Month ₹"+avgs.avgMonth.toFixed(2);
+ avgDay.innerHTML="Avg Day ₹"+avgs.avgDay.toFixed(2);
+ avgHour.innerHTML="Avg Hour ₹"+avgs.avgHour.toFixed(4);
+ avgMinute.innerHTML="Avg Minute ₹"+avgs.avgMinute.toFixed(6);
 
-  document.getElementById("time").innerHTML =
-    "Market Time: "+now.toLocaleTimeString();
-
-  document.getElementById("total").innerHTML =
-    `Total: ₹${total.toFixed(2)}
-     <span style="color:${color}">${arrow} ${Math.abs(change).toFixed(2)}</span>`;
-
-  let avgs = calculateDynamicAverages();
-
-  document.getElementById("avgMonth").innerHTML =
-    "Avg / Month: ₹"+avgs.avgMonth.toFixed(2);
-
-  document.getElementById("avgDay").innerHTML =
-    "Avg / Day: ₹"+avgs.avgDay.toFixed(2);
-
-  document.getElementById("avgHour").innerHTML =
-    "Avg / Hour: ₹"+avgs.avgHour.toFixed(4);
-
-  document.getElementById("avgMinute").innerHTML =
-    "Avg / Minute: ₹"+avgs.avgMinute.toFixed(6);
-
-  updateChart(total);
-
-  previousTotal = total;
+ updateMiniChart(total,change);
+ previousTotal=total;
 }
 
-/* ================= CHART ================= */
-
-function initChart(){
-  chart = new Chart(document.getElementById("miniChart"),{
-    type:"line",
-    data:{
-      labels:[],
-      datasets:[{
-        data:[],
-        borderColor:"#22c55e",
-        tension:0.4,
-        pointRadius:0
-      }]
-    },
-    options:{
-      plugins:{legend:{display:false}},
-      scales:{x:{display:false},y:{display:false}}
-    }
-  });
+/* ========= MINI CHART ========= */
+function initMiniChart(){
+ miniChart=new Chart(miniChart,{
+  type:"line",
+  data:{labels:[],datasets:[{data:[],borderWidth:2,tension:0.4,pointRadius:0}]},
+  options:{plugins:{legend:{display:false}},scales:{x:{display:false},y:{display:true}}}
+ });
 }
 
-function updateChart(value){
-  let label = new Date().toLocaleTimeString();
-  chartData.push(value);
-  chart.data.labels.push(label);
-  chart.data.datasets[0].data.push(value);
+function updateMiniChart(val,change){
+ let color=change>0?"#ef4444":"#22c55e";
+ miniChart.data.labels.push("");
+ miniChart.data.datasets[0].data.push(val);
+ miniChart.data.datasets[0].borderColor=color;
+ if(miniChart.data.labels.length>20){
+   miniChart.data.labels.shift();
+   miniChart.data.datasets[0].data.shift();
+ }
+ miniChart.update();
+}
 
-  if(chartData.length>20){
-    chartData.shift();
-    chart.data.labels.shift();
-    chart.data.datasets[0].data.shift();
+/* ========= BUDGET GRAPHS ========= */
+function renderBudgetCharts(){
+
+ let months=Array(12).fill(0);
+ let categories={};
+ let weeks=[0,0,0,0];
+
+ expenses.forEach(e=>{
+   let d=new Date(e.date);
+   months[d.getMonth()]+=e.amount;
+   categories[e.category]=(categories[e.category]||0)+e.amount;
+   weeks[Math.floor(d.getDate()/7)] += e.amount;
+ });
+
+ if(monthChart) monthChart.destroy();
+ monthChart=new Chart(document.getElementById("monthChart"),{
+  type:"bar",
+  data:{
+   labels:["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"],
+   datasets:[{
+    data:months,
+    backgroundColor:months.map(m=>m>monthlyBudget?"#ef4444":"#22c55e")
+   }]
+  },
+  options:{
+   plugins:{legend:{display:false}},
+   scales:{y:{beginAtZero:true}}
   }
+ });
 
-  chart.update();
+ if(categoryChart) categoryChart.destroy();
+ categoryChart=new Chart(document.getElementById("categoryChart"),{
+  type:"bar",
+  data:{
+   labels:Object.keys(categories),
+   datasets:[{data:Object.values(categories),backgroundColor:"#3b82f6"}]
+  },
+  options:{scales:{y:{beginAtZero:true}}}
+ });
+
+ if(weekChart) weekChart.destroy();
+ weekChart=new Chart(document.getElementById("weekChart"),{
+  type:"bar",
+  data:{
+   labels:["Week1","Week2","Week3","Week4"],
+   datasets:[{data:weeks,backgroundColor:"#f59e0b"}]
+  },
+  options:{scales:{y:{beginAtZero:true}}}
+ });
 }
 
-/* ================= RENDER EXPENSES ================= */
-
+/* ========= LIST ========= */
 function renderExpenses(){
-
-  let container = document.getElementById("expenseList");
-  container.innerHTML="";
-
-  let search = document.getElementById("searchInput").value.toLowerCase();
-
-  expenses.forEach(e=>{
-
-    let combined =
-      e.category+" "+
-      e.amount+" "+
-      e.description+" "+
-      new Date(e.date).toLocaleString();
-
-    if(!combined.toLowerCase().includes(search)) return;
-
-    let div=document.createElement("div");
-    div.className="expenseItem";
-
-    div.innerHTML=`
-      <strong>${e.category}</strong> - ₹${e.amount}<br>
+ let container=expenseList;
+ container.innerHTML="";
+ let search=searchInput.value.toLowerCase();
+ expenses.forEach(e=>{
+   let combined=(e.category+" "+e.amount+" "+e.description+" "+new Date(e.date).toLocaleString()).toLowerCase();
+   if(!combined.includes(search)) return;
+   container.innerHTML+=`
+     <div class="expenseItem">
+      <b>${e.category}</b> ₹${e.amount}<br>
       ${e.description}<br>
-      ${new Date(e.date).toLocaleString()}<br>
-      <button onclick="editExpense(${e.id})">Edit</button>
-      <button onclick="deleteExpense(${e.id})">Delete</button>
-    `;
-
-    container.appendChild(div);
-  });
+      ${new Date(e.date).toLocaleString()}
+     </div>`;
+ });
 }
 
-/* ================= LIVE UPDATE ================= */
+/* ========= LOOP ========= */
+setInterval(()=>{ if(homeSection.style.display!=="none") updateHome(); },1000);
 
-setInterval(()=>{
-  if(document.getElementById("homeSection").style.display!=="none"){
-    updateHome();
-  }
-},1000);
-
-initChart();
+initMiniChart();
 renderExpenses();
+renderBudgetCharts();
 updateHome();
 
 </script>
