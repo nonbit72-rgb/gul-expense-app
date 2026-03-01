@@ -21,14 +21,17 @@ body{
     color:#e2e8f0;
     font-family:Arial;
     padding:15px;
+    margin:0;
 }
 h1{text-align:center;}
+
 .card{
     background:#1e293b;
     padding:15px;
     margin:10px 0;
     border-radius:10px;
 }
+
 input,select,button{
     padding:10px;
     margin:5px 0;
@@ -36,18 +39,50 @@ input,select,button{
     border:none;
     width:100%;
 }
+
 button{
     background:#3b82f6;
     color:white;
 }
+
 button:hover{ background:#2563eb; }
+
 canvas{
     background:#111827;
     border-radius:10px;
 }
+
 .stat{
     font-size:16px;
     margin:5px 0;
+}
+
+/* Sections */
+.section{
+  margin-bottom:80px;
+}
+
+/* Bottom Navigation */
+.bottomNav{
+  position:fixed;
+  bottom:0;
+  left:0;
+  width:100%;
+  background:#1e293b;
+  display:flex;
+  justify-content:space-around;
+  padding:10px 0;
+}
+
+.bottomNav button{
+  background:none;
+  color:#e2e8f0;
+  border:none;
+  font-size:14px;
+}
+
+.bottomNav button:hover{
+  color:#3b82f6;
 }
 </style>
 </head>
@@ -56,58 +91,76 @@ canvas{
 
 <h1>GUL Expense Manager</h1>
 
-<div class="card">
-<div class="stat" id="time"></div>
-<div class="stat" id="total"></div>
-<div class="stat" id="avgDay"></div>
-<div class="stat" id="avgMonth"></div>
-<div class="stat" id="avgMinute"></div>
+<!-- -------- SECTION 1: HOME -------- -->
+<div id="homeSection" class="section">
+  <div class="card">
+    <div class="stat" id="time"></div>
+    <div class="stat" id="total"></div>
+    <div class="stat" id="avgDay"></div>
+    <div class="stat" id="avgMonth"></div>
+    <div class="stat" id="avgMinute"></div>
+  </div>
 </div>
 
-<div class="card">
-<h3>Monthly Budget</h3>
-<input type="number" id="monthlyBudget" placeholder="Set Monthly Budget">
-<button onclick="setBudget()">Set Budget</button>
-<div id="budgetInfo"></div>
+<!-- -------- SECTION 2: BUDGET -------- -->
+<div id="budgetSection" class="section" style="display:none;">
+  <div class="card">
+    <h3>Monthly Budget</h3>
+    <input type="number" id="monthlyBudget" placeholder="Set Monthly Budget">
+    <button onclick="setBudget()">Set Budget</button>
+    <div id="budgetInfo"></div>
+  </div>
+
+  <div class="card">
+    <canvas id="lineChart"></canvas>
+  </div>
+
+  <div class="card">
+    <canvas id="pieChart"></canvas>
+  </div>
 </div>
 
-<div class="card">
-<canvas id="lineChart"></canvas>
+<!-- -------- SECTION 3: ADD EXPENSE -------- -->
+<div id="addSection" class="section" style="display:none;">
+  <div class="card">
+    <select id="category">
+      <option>Food</option>
+      <option>Travel</option>
+      <option>Shopping</option>
+      <option>College Expense</option>
+      <option>Other</option>
+    </select>
+
+    <input type="number" id="amount" placeholder="Enter Amount">
+    <button onclick="addExpense()">Add Expense</button>
+    <button onclick="exportCSV()">Export CSV</button>
+  </div>
 </div>
 
-<div class="card">
-<canvas id="pieChart"></canvas>
+<!-- -------- SECTION 4: EXPENSE LIST -------- -->
+<div id="listSection" class="section" style="display:none;">
+  <div class="card">
+    <select onchange="sortExpenses(this.value)">
+      <option value="latest">Latest</option>
+      <option value="oldest">Oldest</option>
+      <option value="high">Highest</option>
+      <option value="low">Lowest</option>
+    </select>
+
+    <input type="text" id="searchInput" 
+    placeholder="Search expenses..." 
+    onkeyup="renderExpenseList()">
+
+    <div id="expenseList"></div>
+  </div>
 </div>
 
-<div class="card">
-<select id="category">
-<option>Food</option>
-<option>Travel</option>
-<option>Shopping</option>
-<option>College Expense</option>
-<option>Other</option>
-</select>
-
-<input type="number" id="amount" placeholder="Enter Amount">
-<button onclick="addExpense()">Add Expense</button>
-<button onclick="exportCSV()">Export CSV</button>
-</div>
-
-<div class="card">
-<select onchange="sortExpenses(this.value)">
-<option value="latest">Latest</option>
-<option value="oldest">Oldest</option>
-<option value="high">Highest</option>
-<option value="low">Lowest</option>
-</select>
-
-<h3>Expense List</h3>
-
-<input type="text" id="searchInput" 
-placeholder="Search expenses..." 
-onkeyup="renderExpenseList()">
-
-<div id="expenseList"></div>
+<!-- -------- BOTTOM NAVIGATION -------- -->
+<div class="bottomNav">
+  <button onclick="showSection('homeSection')">Home</button>
+  <button onclick="showSection('budgetSection')">Budget</button>
+  <button onclick="showSection('addSection')">Add</button>
+  <button onclick="showSection('listSection')">Expenses</button>
 </div>
 
 <script>
@@ -115,6 +168,13 @@ onkeyup="renderExpenseList()">
 // -------- DATA --------
 let expenses = JSON.parse(localStorage.getItem("gulData")) || [];
 let monthlyBudget = localStorage.getItem("budget") || 0;
+
+// -------- SECTION SWITCH --------
+function showSection(sectionId){
+  let sections = document.querySelectorAll(".section");
+  sections.forEach(sec => sec.style.display = "none");
+  document.getElementById(sectionId).style.display = "block";
+}
 
 // -------- BUDGET --------
 function setBudget(){
@@ -178,7 +238,7 @@ function updateStats(){
         now.toLocaleString("en-IN",{timeZone:"Asia/Kolkata",hour12:false});
 }
 
-// -------- DAILY DATA --------
+// -------- CHARTS --------
 function getDailyData(){
     let map={};
     expenses.forEach(e=>{
@@ -188,7 +248,6 @@ function getDailyData(){
     return map;
 }
 
-// -------- CATEGORY DATA --------
 function getCategoryData(){
     let map={};
     expenses.forEach(e=>{
@@ -197,15 +256,9 @@ function getCategoryData(){
     return map;
 }
 
-// -------- CHARTS --------
 let lineChart = new Chart(document.getElementById("lineChart"),{
 type:'line',
-data:{labels:[],datasets:[{
-    label:'Daily Spending',
-    data:[],
-    borderColor:'#3b82f6',
-    fill:false
-}]},
+data:{labels:[],datasets:[{label:'Daily Spending',data:[],borderColor:'#3b82f6',fill:false}]},
 options:{animation:false,responsive:true}
 });
 
@@ -225,20 +278,6 @@ function updateCharts(){
     pieChart.data.labels = Object.keys(cat);
     pieChart.data.datasets[0].data = Object.values(cat);
     pieChart.update();
-}
-
-// -------- EXPORT CSV --------
-function exportCSV(){
-    let csv="Category,Amount,Date\n";
-    expenses.forEach(e=>{
-        csv+=`${e.category},${e.amount},${e.date}\n`;
-    });
-
-    let blob=new Blob([csv],{type:"text/csv"});
-    let link=document.createElement("a");
-    link.href=URL.createObjectURL(blob);
-    link.download="expenses.csv";
-    link.click();
 }
 
 // -------- LIST --------
@@ -262,9 +301,7 @@ function renderExpenseList(){
 
             div.innerHTML=`
                 <strong>${e.category}</strong> - ₹${e.amount.toFixed(2)}<br>
-                <small>${date}</small><br>
-                <button onclick="editExpense(${index})">Edit</button>
-                <button onclick="removeExpense(${index})" style="background:#ef4444">Remove</button>
+                <small>${date}</small>
             `;
 
             container.appendChild(div);
@@ -272,24 +309,6 @@ function renderExpenseList(){
     });
 }
 
-// -------- EDIT --------
-function editExpense(index){
-    let newAmount=prompt("Enter new amount:",expenses[index].amount);
-    if(newAmount!==null){
-        expenses[index].amount=parseFloat(newAmount);
-        localStorage.setItem("gulData",JSON.stringify(expenses));
-        updateAll();
-    }
-}
-
-// -------- REMOVE --------
-function removeExpense(index){
-    expenses.splice(index,1);
-    localStorage.setItem("gulData",JSON.stringify(expenses));
-    updateAll();
-}
-
-// -------- SORT --------
 function sortExpenses(type){
     if(type=="latest") expenses.sort((a,b)=>new Date(b.date)-new Date(a.date));
     if(type=="oldest") expenses.sort((a,b)=>new Date(a.date)-new Date(b.date));
@@ -306,32 +325,19 @@ function updateAll(){
     updateBudget();
 }
 
-// -------- SMART CLOCK CONTROL --------
-
-// Update once on load
+// -------- SMART CLOCK --------
 updateAll();
-
-// Update stats only when visible (no background CPU usage)
 let clockInterval;
-
 function startClock(){
-    clockInterval = setInterval(updateStats, 3600000); // 1 hour
+    clockInterval = setInterval(updateStats, 3600000);
 }
-
 function stopClock(){
     clearInterval(clockInterval);
 }
-
 document.addEventListener("visibilitychange", function(){
-    if(document.hidden){
-        stopClock();
-    } else {
-        updateStats();
-        startClock();
-    }
+    if(document.hidden){ stopClock(); }
+    else{ updateStats(); startClock(); }
 });
-
-// Start initially
 startClock();
 
 </script>
