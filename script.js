@@ -13,7 +13,42 @@ function showSection(id){
   document.getElementById(id).style.display="block";
 }
 showSection("homeSection");
+/*==================Budget==============*/
+let monthlyBudget = parseFloat(localStorage.getItem("monthlyBudget")) || 0;
+function setBudget(){
+  monthlyBudget = parseFloat(document.getElementById("monthlyBudgetInput").value) || 0;
+  localStorage.setItem("monthlyBudget", monthlyBudget);
+  updateBudget();
+}
+function updateBudget(){
 
+  const now = new Date();
+  const currentMonth = now.getMonth();
+  const currentYear = now.getFullYear();
+
+  const monthTotal = expenses
+    .filter(e=>{
+      const d=new Date(e.date);
+      return d.getMonth()===currentMonth && d.getFullYear()===currentYear;
+    })
+    .reduce((sum,e)=>sum+e.amount,0);
+
+  const diff = monthlyBudget - monthTotal;
+
+  const statusDiv = document.getElementById("budgetStatus");
+
+  if(diff >= 0){
+    statusDiv.innerHTML = "Surplus: ₹" + diff.toFixed(2);
+    statusDiv.style.color = "lightgreen";
+  } else {
+    statusDiv.innerHTML = "Deficit: ₹" + Math.abs(diff).toFixed(2);
+    statusDiv.style.color = "red";
+  }
+
+  updateBudgetChart(monthTotal);
+  updateCategoryChart();
+  updateYearChart();
+}
 /* ================= ADD ================= */
 
 function addExpense(){
@@ -44,6 +79,7 @@ function addExpense(){
   renderExpenses();
   updateHome();
   updateMiniChart();
+  updateBudget();
 }
 
 /* ================= DELETE ================= */
@@ -54,6 +90,7 @@ function deleteExpense(id){
   renderExpenses();
   updateHome();
   updateMiniChart();
+  updateBudget();
 }
 
 /* ================= EDIT ================= */
@@ -78,6 +115,7 @@ function editExpense(id){
   renderExpenses();
   updateHome();
   updateMiniChart();
+  updateBudget();
 }
 
 /* ================= COST PER CALCULATION ================= */
@@ -191,8 +229,12 @@ function updateMiniChart(){
 
   // Group by date (YYYY-MM-DD)
   expenses.forEach(e => {
-    const date = new Date(e.date).toISOString().split("T")[0];
+   const d = new Date(e.date);
 
+const date = d.toLocaleDateString("en-US", {
+  month: "short",
+  day: "numeric"
+});
     if(!grouped[date]){
       grouped[date] = 0;
     }
