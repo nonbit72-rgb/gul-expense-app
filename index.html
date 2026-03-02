@@ -33,7 +33,17 @@ if ('serviceWorker' in navigator) {
     <canvas id="miniChart" height="90"></canvas>
   </div>
 </div>
-
+<!-- BUDGET -->
+<div id="budgetSection" class="section">
+  <div class="card">
+    <input type="number" id="monthlyBudgetInput" placeholder="Set Monthly Budget">
+    <button onclick="setBudget()">Save Budget</button>
+    <div id="budgetStatus"></div>
+    <canvas id="budgetChart" height="100"></canvas>
+    <canvas id="categoryChart" height="100"></canvas>
+    <canvas id="yearChart" height="100"></canvas>
+  </div>
+</div>
 <!-- ADD -->
 <div id="addSection" class="section">
   <div class="card">
@@ -61,6 +71,7 @@ if ('serviceWorker' in navigator) {
 
 <div class="bottomNav">
   <button onclick="showSection('homeSection')">Home</button>
+  <button onclick="showSection('budgetSection')">Budget</button>
   <button onclick="showSection('addSection')">Add</button>
   <button onclick="showSection('listSection')">Expenses</button>
 </div>
