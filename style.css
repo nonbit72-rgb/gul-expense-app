@@ -1,0 +1,78 @@
+body{
+  margin:0;
+  font-family:'Poppins',sans-serif;
+  background:linear-gradient(135deg,#0f172a,#1e293b);
+  color:#e2e8f0;
+}
+h1{text-align:center;padding:15px 0;margin:0;}
+
+.section{display:none;padding:15px 15px 100px;}
+
+.card{
+  background: rgba(255,255,255,0.05);
+  backdrop-filter: blur(15px);
+  border: 1px solid rgba(255,255,255,0.1);
+  padding:20px;
+  margin:15px 0;
+  border-radius:20px;
+  box-shadow:0 8px 32px rgba(0,0,0,0.4);
+  transition:0.3s;
+}
+
+.card:hover{
+  transform:translateY(-5px);
+}
+input,select,button{
+  width:100%;
+  padding:10px;
+  margin:6px 0;
+  border-radius:8px;
+  border:none;
+}
+
+button{
+  background: linear-gradient(45deg,#3b82f6,#6366f1);
+  color:white;
+  font-weight:bold;
+  cursor:pointer;
+  transition:0.3s;
+}
+
+button:hover{
+  transform:scale(1.05);
+  box-shadow:0 0 15px #3b82f6;
+}
+.expenseItem{
+  background:#0f172a;
+  padding:12px;
+  margin:10px 0;
+  border-radius:12px;
+  box-shadow:0 0 10px rgba(0,0,0,0.3);
+}
+
+.expenseItem button{
+  width:auto;
+  padding:5px 10px;
+  margin-top:5px;
+  margin-right:5px;
+  font-size:12px;
+}
+
+.bottomNav{
+  position:fixed;
+  bottom:0;
+  width:100%;
+  background:#111827;
+  display:flex;
+  justify-content:space-around;
+  padding:10px 0;
+  box-shadow:0 -3px 10px rgba(0,0,0,0.4);
+}
+
+.bottomNav button{
+  background:none;
+  color:#e2e8f0;
+  font-size:14px;
+}
+
+.stat{margin:5px 0;font-size:14px;}

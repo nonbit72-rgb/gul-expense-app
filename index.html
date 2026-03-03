@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#0f172a">
+<title>GUL Ultra Expense Manager</title>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<link rel="manifest" href="manifest.json">
+
+<script>
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('service-worker.js');
+}
+</script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<link rel="stylesheet" href="style.css">
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap" rel="stylesheet">
+</head>
+
+<body>
+
+<h1>GUL Expense Manager</h1>
+
+<!-- HOME -->
+<div id="homeSection" class="section">
+  <div class="card">
+    <div id="time" class="stat"></div>
+    <div id="total" class="stat"></div>
+    <div id="avgMonth" class="stat"></div>
+    <div id="avgDay" class="stat"></div>
+    <div id="avgHour" class="stat"></div>
+    <div id="avgMinute" class="stat"></div>
+    <canvas id="miniChart" height="90"></canvas>
+  </div>
+</div>
+<!-- BUDGET -->
+<div id="budgetSection" class="section">
+  <div class="card">
+    <input type="number" id="monthlyBudgetInput" placeholder="Set Monthly Budget">
+<button onclick="setBudget()">Save Budget</button>
+<button onclick="editBudget()">Edit Budget</button>
+<button onclick="deleteBudget()">Delete Budget</button>
+
+<div id="budgetStatus"></div>
+<div id="budgetPercent"></div>
+    <canvas id="budgetChart" height="100"></canvas>
+    <canvas id="categoryChart" height="100"></canvas>
+    <canvas id="yearChart" height="100"></canvas>
+  </div>
+</div>
+<!-- ADD -->
+<div id="addSection" class="section">
+  <div class="card">
+    <select id="category">
+      <option>Food</option>
+      <option>Travel</option>
+      <option>Shopping</option>
+      <option>College Expense</option>
+      <option>Other</option>
+    </select>
+    <input type="number" id="amount" placeholder="Amount">
+    <input type="text" id="description" placeholder="Description">
+    <input type="datetime-local" id="customTime">
+    <button onclick="addExpense()">Add Expense</button>
+  </div>
+</div>
+
+<!-- LIST -->
+<div id="listSection" class="section">
+  <div class="card">
+    <input type="text" id="searchInput" placeholder="Search..." onkeyup="renderExpenses()">
+    <div id="expenseList"></div>
+    <button onclick="exportPDF()">Export to PDF</button>
+<button onclick="exportCSV()">Export to Excel</button>
+  </div>
+</div>
+
+<div class="bottomNav">
+  <button onclick="showSection('homeSection')">Home</button>
+  <button onclick="showSection('budgetSection')">Budget</button>
+  <button onclick="showSection('addSection')">Add</button>
+  <button onclick="showSection('listSection')">Expenses</button>
+</div>
+<script src="script.js"></script>
+
+</body>
+</html>
