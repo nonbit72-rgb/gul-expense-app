@@ -1,567 +1,600 @@
+'use strict';
+
+/* ============================================================
+   EXPENSE MANAGER — script.js
+   
+   Sections:
+     1.  Constants & State
+     2.  Database (IndexedDB helpers)
+     3.  Navigation
+     4.  Home Section
+     5.  Budget Section
+     6.  Add / Edit Expense Section
+     7.  Expense List Section
+     8.  Profile Section  ← Placeholder, easy to extend
+     9.  Invoice Template ← Clearly separated, easy to customise
+    10.  Utilities
+    11.  Central Data-Changed Handler
+    12.  Initialization
+============================================================ */
 
 
-/* ================= GLOBAL ================= */
+/* ============================================================
+   1. CONSTANTS & STATE
+============================================================ */
 
-let expenses = JSON.parse(localStorage.getItem("gulData")) || [];
-let previousTotal = 0;
-let miniChart;
-let budgetChart;
-let categoryChart;
-let yearChart;
+const DB_NAME    = 'ExpenseManagerDB';
+const DB_VERSION = 1;
 
-/* ================= NAVIGATION ================= */
+const MONTH_NAMES = [
+  'January','February','March','April','May','June',
+  'July','August','September','October','November','December'
+];
 
-function showSection(id){
-  document.querySelectorAll(".section").forEach(s=>s.style.display="none");
-  document.getElementById(id).style.display="block";
+// Predefined categories (used for CSV normalisation and form selector)
+const PREDEFINED_CATS = ['Food & Dining','Travel','Shopping','College Expense','Other'];
+
+// ---- Navigation state ----
+let currentSection = 'home';
+
+// ---- Timer handles ----
+let clockTimer    = null;   // 1-second clock in Card 1
+let rateTimer     = null;   // 1-second cost-rate recalc in Card 2
+
+// ---- Calendar state ----
+let calYear  = new Date().getFullYear();
+let calMonth = new Date().getMonth();   // 0-indexed
+
+// ---- Budget section state ----
+let budgetYear = new Date().getFullYear();
+
+// ---- Expense list state ----
+let showAllExpenses = false;
+let searchQuery     = '';
+
+// ---- Edit state (null = adding new, number = ID of expense being edited) ----
+let editingId = null;
+
+// ---- In-memory data cache (avoids repeated DB scans) ----
+let cachedExpenses = [];   // all expense records, sorted newest-first
+let cachedBudgets  = [];   // all budget records
+
+// ---- Touch-swipe tracking ----
+let calSwipeStartX    = 0;
+let budgetSwipeStartX = 0;
+
+
+/* ============================================================
+   2. DATABASE (IndexedDB)
+============================================================ */
+
+let db = null;
+
+/** Open (or create) the IndexedDB database and its object stores. */
+function initDB() {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open(DB_NAME, DB_VERSION);
+
+    req.onupgradeneeded = (e) => {
+      const database = e.target.result;
+
+      // expenses store — auto-increment integer primary key
+      if (!database.objectStoreNames.contains('expenses')) {
+        const store = database.createObjectStore('expenses', {
+          keyPath: 'id', autoIncrement: true
+        });
+        store.createIndex('by_timestamp', 'timestamp', { unique: false });
+      }
+
+      // budgets store — keyed by year (integer)
+      if (!database.objectStoreNames.contains('budgets')) {
+        database.createObjectStore('budgets', { keyPath: 'year' });
+      }
+    };
+
+    req.onsuccess = (e) => { db = e.target.result; resolve(); };
+    req.onerror   = (e) => reject(e.target.error);
+  });
 }
-showSection("homeSection");
-/*==================Budget==============*/
-let monthlyBudget = parseFloat(localStorage.getItem("monthlyBudget")) || 0;
-function setBudget(){
-  monthlyBudget = parseFloat(document.getElementById("monthlyBudgetInput").value) || 0;
-  localStorage.setItem("monthlyBudget", monthlyBudget);
-  updateBudget();
-}
-function updateBudget(){
 
+/** Fetch all records from a store. */
+function dbGetAll(storeName) {
+  return new Promise((resolve, reject) => {
+    const req = db.transaction(storeName, 'readonly')
+                  .objectStore(storeName).getAll();
+    req.onsuccess = () => resolve(req.result);
+    req.onerror   = () => reject(req.error);
+  });
+}
+
+/** Fetch a single record by key. */
+function dbGet(storeName, key) {
+  return new Promise((resolve, reject) => {
+    const req = db.transaction(storeName, 'readonly')
+                  .objectStore(storeName).get(key);
+    req.onsuccess = () => resolve(req.result);
+    req.onerror   = () => reject(req.error);
+  });
+}
+
+/** Insert or update a record. Returns the record key. */
+function dbPut(storeName, data) {
+  return new Promise((resolve, reject) => {
+    const req = db.transaction(storeName, 'readwrite')
+                  .objectStore(storeName).put(data);
+    req.onsuccess = () => resolve(req.result);
+    req.onerror   = () => reject(req.error);
+  });
+}
+
+/** Delete a record by key. */
+function dbDelete(storeName, key) {
+  return new Promise((resolve, reject) => {
+    const req = db.transaction(storeName, 'readwrite')
+                  .objectStore(storeName).delete(key);
+    req.onsuccess = () => resolve();
+    req.onerror   = () => reject(req.error);
+  });
+}
+
+/** Reload the in-memory cache from the database. */
+async function refreshCache() {
+  [cachedExpenses, cachedBudgets] = await Promise.all([
+    dbGetAll('expenses'),
+    dbGetAll('budgets')
+  ]);
+  // Keep expenses sorted newest-first throughout the app
+  cachedExpenses.sort((a, b) => b.timestamp - a.timestamp);
+}
+
+
+/* ============================================================
+   3. NAVIGATION
+============================================================ */
+
+function navigateTo(section) {
+  // Tear down timers from the previous section
+  if (currentSection === 'home') {
+    stopClock();
+    stopRateTimer();
+  }
+
+  // Swap active classes
+  document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+  document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('section-' + section).classList.add('active');
+  document.querySelector('.nav-btn[data-section="' + section + '"]').classList.add('active');
+
+  currentSection = section;
+
+  // Initialise the newly shown section
+  switch (section) {
+    case 'home':
+      renderHomeCards();
+      startClock();
+      startRateTimer();
+      break;
+    case 'budget':
+      renderBudget();
+      break;
+    case 'add':
+      // If not already editing, reset to blank new-expense form
+      if (editingId === null) resetAddForm();
+      break;
+    case 'expense':
+      renderExpenses();
+      break;
+    case 'profile':
+      renderProfile();
+      break;
+  }
+}
+
+
+/* ============================================================
+   4. HOME SECTION
+============================================================ */
+
+/** Render all three home cards from the current cache. */
+function renderHomeCards() {
+  updateTimeDisplay();
+  updateTotalExpense();
+  updateCostRates();
+  renderCalendar(calYear, calMonth);
+}
+
+// ---- Clock (Card 1) ----
+
+function startClock() {
+  stopClock();
+  clockTimer = setInterval(updateTimeDisplay, 1000);
+}
+
+function stopClock() {
+  if (clockTimer) { clearInterval(clockTimer); clockTimer = null; }
+}
+
+function updateTimeDisplay() {
   const now = new Date();
-  const currentMonth = now.getMonth();
-  const currentYear = now.getFullYear();
+  const hh  = String(now.getHours()).padStart(2, '0');
+  const mm  = String(now.getMinutes()).padStart(2, '0');
+  const ss  = String(now.getSeconds()).padStart(2, '0');
+  const el  = document.getElementById('display-time');
+  if (el) el.textContent = `${hh}:${mm}:${ss}`;
+}
 
-  const monthTotal = expenses
-    .filter(e=>{
-      const d=new Date(e.date);
-      return d.getMonth()===currentMonth && d.getFullYear()===currentYear;
-    })
-    .reduce((sum,e)=>sum+e.amount,0);
+// ---- Total Expense (Card 1) ----
 
-  const diff = monthlyBudget - monthTotal;
-  const statusDiv = document.getElementById("budgetStatus");
-  const percentDiv = document.getElementById("budgetPercent");
+function updateTotalExpense() {
+  const total = cachedExpenses.reduce((s, e) => s + (Number(e.amount) || 0), 0);
+  const el = document.getElementById('display-total');
+  if (el) el.textContent = formatCurrency(total);
+}
 
-  if(monthlyBudget <= 0){
-    statusDiv.innerHTML = "No Budget Set";
-    percentDiv.innerHTML = "";
-    updateBudgetChart(0);
+// ---- Cost Rates (Card 2) ----
+
+function startRateTimer() {
+  stopRateTimer();
+  rateTimer = setInterval(updateCostRates, 1000);
+}
+
+function stopRateTimer() {
+  if (rateTimer) { clearInterval(rateTimer); rateTimer = null; }
+}
+
+/**
+ * Recalculate cost rates every second (only while home section is active).
+ *
+ * Formula per time unit:
+ *   rate = Σ ( expense.amount / max(1, floor(elapsed_units_since_expense)) )
+ *
+ * Uses floor so 1.9 months → 1 month, not 2.
+ * If elapsed = 0, treats as 1 to avoid division by zero.
+ */
+function updateCostRates() {
+  const now     = Date.now();
+  const MS_MIN  = 60 * 1000;
+  const MS_HOUR = 60 * MS_MIN;
+  const MS_DAY  = 24 * MS_HOUR;
+  const MS_MON  = 30.44 * MS_DAY; // average month
+
+  let perMonth = 0, perDay = 0, perHour = 0, perMinute = 0;
+
+  for (const exp of cachedExpenses) {
+    const amt     = Number(exp.amount) || 0;
+    const elapsed = now - exp.timestamp;
+
+    perMonth  += amt / Math.max(1, Math.floor(elapsed / MS_MON));
+    perDay    += amt / Math.max(1, Math.floor(elapsed / MS_DAY));
+    perHour   += amt / Math.max(1, Math.floor(elapsed / MS_HOUR));
+    perMinute += amt / Math.max(1, Math.floor(elapsed / MS_MIN));
+  }
+
+  const set = (id, val) => {
+    const el = document.getElementById(id);
+    if (el) el.textContent = formatCurrency(val);
+  };
+  set('rate-month',  perMonth);
+  set('rate-day',    perDay);
+  set('rate-hour',   perHour);
+  set('rate-minute', perMinute);
+}
+
+// ---- Calendar (Card 3) ----
+
+/** Render the monthly calendar grid for the given year/month. */
+function renderCalendar(year, month) {
+  const titleEl = document.getElementById('cal-title');
+  const gridEl  = document.getElementById('calendar-grid');
+  if (!titleEl || !gridEl) return;
+
+  titleEl.textContent = `${MONTH_NAMES[month]} ${year}`;
+
+  // Build a Set of day-numbers that have at least one expense
+  const startMS = new Date(year, month, 1).getTime();
+  const endMS   = new Date(year, month + 1, 0, 23, 59, 59, 999).getTime();
+  const expDays = new Set();
+  for (const exp of cachedExpenses) {
+    if (exp.timestamp >= startMS && exp.timestamp <= endMS) {
+      expDays.add(new Date(exp.timestamp).getDate());
+    }
+  }
+
+  const today      = new Date();
+  const todayY     = today.getFullYear();
+  const todayM     = today.getMonth();
+  const todayD     = today.getDate();
+  const firstWday  = new Date(year, month, 1).getDay(); // 0=Sun
+  const daysInMon  = new Date(year, month + 1, 0).getDate();
+
+  // Weekday headers
+  let html = '<div class="cal-weekdays">';
+  for (const d of ['Su','Mo','Tu','We','Th','Fr','Sa']) {
+    html += `<div class="cal-wday">${d}</div>`;
+  }
+  html += '</div><div class="cal-days">';
+
+  // Empty cells before the 1st
+  for (let i = 0; i < firstWday; i++) {
+    html += '<div class="cal-day empty"></div>';
+  }
+
+  for (let d = 1; d <= daysInMon; d++) {
+    const isFuture = (year > todayY)
+      || (year === todayY && month > todayM)
+      || (year === todayY && month === todayM && d > todayD);
+    const isToday  = (year === todayY && month === todayM && d === todayD);
+
+    let cls = 'cal-day';
+    if (isFuture)          cls += ' future';
+    else if (expDays.has(d)) cls += ' has-expense';
+    else                   cls += ' no-expense';
+    if (isToday)           cls += ' today';
+
+    html += `<div class="${cls}" onclick="showDayExpenses(${year},${month},${d})">${d}</div>`;
+  }
+  html += '</div>';
+
+  gridEl.innerHTML = html;
+}
+
+/** Open the day popup showing all expenses for a clicked calendar day. */
+function showDayExpenses(year, month, day) {
+  const startMS = new Date(year, month, day).getTime();
+  const endMS   = new Date(year, month, day, 23, 59, 59, 999).getTime();
+  const dayExps = cachedExpenses.filter(e => e.timestamp >= startMS && e.timestamp <= endMS);
+
+  document.getElementById('day-modal-title').textContent =
+    `${day} ${MONTH_NAMES[month]} ${year}`;
+
+  const content = document.getElementById('day-modal-content');
+  if (dayExps.length === 0) {
+    content.innerHTML = '<p class="text-muted" style="text-align:center;padding:20px">None</p>';
+  } else {
+    content.innerHTML = dayExps.map(e => `
+      <div class="mini-expense-card">
+        <div class="mini-expense-cat">${esc(e.category)}</div>
+        <div class="mini-expense-amount">${formatCurrency(e.amount)}</div>
+        ${e.description ? `<div class="mini-expense-desc">${esc(e.description)}</div>` : ''}
+        <div class="mini-expense-time">${new Date(e.timestamp).toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'})}</div>
+      </div>
+    `).join('');
+  }
+
+  document.getElementById('modal-day').style.display = 'flex';
+}
+
+function closeDayModal(event) {
+  if (!event || event.target === document.getElementById('modal-day')) {
+    document.getElementById('modal-day').style.display = 'none';
+  }
+}
+
+/** Wire up the calendar prev/next buttons and touch-swipe. */
+function initCalendarNav() {
+  document.getElementById('cal-prev').addEventListener('click', () => {
+    calMonth--;
+    if (calMonth < 0) { calMonth = 11; calYear--; }
+    renderCalendar(calYear, calMonth);
+  });
+
+  document.getElementById('cal-next').addEventListener('click', () => {
+    calMonth++;
+    if (calMonth > 11) { calMonth = 0; calYear++; }
+    renderCalendar(calYear, calMonth);
+  });
+
+  // Swipe left = next month, swipe right = prev month
+  const cal = document.getElementById('card-calendar');
+  cal.addEventListener('touchstart', e => { calSwipeStartX = e.touches[0].clientX; }, { passive: true });
+  cal.addEventListener('touchend', e => {
+    const diff = calSwipeStartX - e.changedTouches[0].clientX;
+    if (Math.abs(diff) < 50) return; // ignore short swipes
+    if (diff > 0) { calMonth++; if (calMonth > 11) { calMonth = 0; calYear++; } }
+    else          { calMonth--; if (calMonth < 0)  { calMonth = 11; calYear--; } }
+    renderCalendar(calYear, calMonth);
+  }, { passive: true });
+}
+
+
+/* ============================================================
+   5. BUDGET SECTION
+============================================================ */
+
+/** Render the entire budget section for the current budgetYear. */
+function renderBudget() {
+  document.getElementById('budget-year-label').textContent = budgetYear;
+  updateBudgetSummary();
+  drawAllCharts();
+}
+
+/** Recalculate and display the budget summary card. */
+function updateBudgetSummary() {
+  const budget      = cachedBudgets.find(b => b.year === budgetYear);
+  const yearExps    = cachedExpenses.filter(e => new Date(e.timestamp).getFullYear() === budgetYear);
+  const totalSpent  = yearExps.reduce((s, e) => s + (Number(e.amount) || 0), 0);
+  const content     = document.getElementById('budget-summary-content');
+
+  if (!budget) {
+    content.innerHTML = `<p class="text-muted" style="text-align:center;">
+      No budget set for ${budgetYear}.<br>Click <strong>+ Add</strong> to set one.
+    </p>`;
     return;
   }
 
-  const percent = (monthTotal / monthlyBudget) * 100;
+  const budgetAmt = Number(budget.amount) || 0;
+  const surplus   = budgetAmt - totalSpent;
+  const pct       = budgetAmt > 0 ? Math.min(100, (totalSpent / budgetAmt) * 100) : 0;
+  const barColor  = pct >= 90 ? 'var(--btn-del)' : 'var(--btn-ok)';
+  const surpCls   = surplus >= 0 ? 'accent' : 'text-danger';
+  const surpLabel = surplus >= 0 ? 'Surplus' : 'Deficit';
 
-  if(diff >= 0){
-    statusDiv.innerHTML = "Surplus: ₹" + diff.toFixed(2);
-    statusDiv.style.color = "lightgreen";
-  } else {
-    statusDiv.innerHTML = "Deficit: ₹" + Math.abs(diff).toFixed(2);
-    statusDiv.style.color = "red";
+  content.innerHTML = `
+    <div class="summary-row">
+      <span class="card-label">Annual Budget</span>
+      <span class="value accent">${formatCurrency(budgetAmt)}</span>
+    </div>
+    <div class="summary-row">
+      <span class="card-label">Total Spent</span>
+      <span class="value">${formatCurrency(totalSpent)}</span>
+    </div>
+    <div class="summary-row">
+      <span class="card-label">${surpLabel}</span>
+      <span class="value ${surpCls}">${formatCurrency(Math.abs(surplus))}</span>
+    </div>
+    <div class="progress-label">
+      <span class="card-label">Budget Used</span>
+      <span class="card-label">${pct.toFixed(1)}%</span>
+    </div>
+    <div class="progress-bar-bg">
+      <div class="progress-bar-fill" style="width:${pct}%; background:${barColor}"></div>
+    </div>
+  `;
+}
+
+// ---- Budget CRUD modals ----
+
+function openAddBudgetModal() {
+  document.getElementById('budget-modal-title').textContent = 'Add Budget';
+  document.getElementById('budget-year-input').value   = budgetYear;
+  document.getElementById('budget-amount-input').value = '';
+  document.getElementById('modal-budget').style.display = 'flex';
+}
+
+function openEditBudgetModal() {
+  const existing = cachedBudgets.find(b => b.year === budgetYear);
+  document.getElementById('budget-modal-title').textContent = 'Edit Budget';
+  document.getElementById('budget-year-input').value   = budgetYear;
+  document.getElementById('budget-amount-input').value = existing ? existing.amount : '';
+  document.getElementById('modal-budget').style.display = 'flex';
+}
+
+async function saveBudget() {
+  const year   = parseInt(document.getElementById('budget-year-input').value, 10);
+  const amount = parseFloat(document.getElementById('budget-amount-input').value);
+
+  if (!year || isNaN(amount) || amount < 0) {
+    showToast('Please enter a valid year and amount.'); return;
   }
 
-  percentDiv.innerHTML = "Used: " + percent.toFixed(1) + "%";
-
-  updateBudgetChart(monthTotal, percent);
-  updateCategoryChart();
-  updateYearChart();
+  await dbPut('budgets', { year, amount });
+  closeBudgetModal();
+  await refreshCache();
+  renderBudget();
+  showToast(`Budget for ${year} saved!`);
 }
-function updateBudgetChart(monthTotal, percent){
 
-  if(!budgetChart) return;
-
-  let barColor = "#22c55e"; // green
-
-  if(percent >= 100){
-    barColor = "#ef4444"; // red
-  } else if(percent >= 75){
-    barColor = "#f59e0b"; // yellow
-  }
-
-  budgetChart.data.datasets[0].data = [
-    monthlyBudget,
-    monthTotal
-  ];
-
-  budgetChart.data.datasets[0].backgroundColor = [
-    "#3b82f6",
-    barColor
-  ];
-
-  budgetChart.update();
+async function deleteBudgetForYear() {
+  if (!confirm(`Delete budget for ${budgetYear}?`)) return;
+  await dbDelete('budgets', budgetYear);
+  await refreshCache();
+  renderBudget();
+  showToast('Budget deleted.');
 }
-function updateCategoryChart(){
 
-  if(!categoryChart) return;
-
-  const grouped = {};
-
-  expenses.forEach(e=>{
-    if(!grouped[e.category]){
-      grouped[e.category] = 0;
-    }
-    grouped[e.category] += e.amount;
-  });
-
-  categoryChart.data.labels = Object.keys(grouped);
-  categoryChart.data.datasets[0].data = Object.values(grouped);
-
-  categoryChart.update();
-}
-function updateYearChart(){
-
-  if(!yearChart) return;
-
-  const months = new Array(12).fill(0);
-  const now = new Date();
-  const currentYear = now.getFullYear();
-
-  expenses.forEach(e=>{
-    const d = new Date(e.date);
-    if(d.getFullYear() === currentYear){
-      months[d.getMonth()] += e.amount;
-    }
-  });
-
-  yearChart.data.labels = [
-    "Jan","Feb","Mar","Apr","May","Jun",
-    "Jul","Aug","Sep","Oct","Nov","Dec"
-  ];
-
-  yearChart.data.datasets[0].data = months;
-
-  yearChart.update();
-}
-function editBudget(){
-  if(monthlyBudget <= 0) return;
-
-  const newBudget = prompt("Edit Monthly Budget:", monthlyBudget);
-
-  if(newBudget !== null && !isNaN(newBudget)){
-    monthlyBudget = parseFloat(newBudget);
-    localStorage.setItem("monthlyBudget", monthlyBudget);
-    updateBudget();
+function closeBudgetModal(event) {
+  if (!event || event.target === document.getElementById('modal-budget')) {
+    document.getElementById('modal-budget').style.display = 'none';
   }
 }
 
-function deleteBudget(){
-  if(confirm("Delete Monthly Budget?")){
-    monthlyBudget = 0;
-    localStorage.removeItem("monthlyBudget");
-    document.getElementById("monthlyBudgetInput").value = "";
-    updateBudget();
-  }
-}
-/* ================= ADD ================= */
-
-function addExpense(){
-
-  const category = document.getElementById("category").value;
-  const amount = parseFloat(document.getElementById("amount").value);
-  const description = document.getElementById("description").value;
-  const customTime = document.getElementById("customTime").value;
-
-  if(!amount) return;
-
-  const finalTime = customTime ? new Date(customTime) : new Date();
-
-  expenses.push({
-    id: Date.now(),
-    category,
-    amount,
-    description,
-    date: finalTime.toISOString()
+/** Wire up budget year navigation buttons and swipe. */
+function initBudgetNav() {
+  document.getElementById('budget-prev-year').addEventListener('click', () => {
+    budgetYear--; if (currentSection === 'budget') renderBudget();
+  });
+  document.getElementById('budget-next-year').addEventListener('click', () => {
+    budgetYear++; if (currentSection === 'budget') renderBudget();
   });
 
-  localStorage.setItem("gulData", JSON.stringify(expenses));
-
-  document.getElementById("amount").value="";
-  document.getElementById("description").value="";
-  document.getElementById("customTime").value="";
-
-  renderExpenses();
-  updateHome();
-  updateMiniChart();
-  updateBudget();
+  const sect = document.getElementById('section-budget');
+  sect.addEventListener('touchstart', e => { budgetSwipeStartX = e.touches[0].clientX; }, { passive: true });
+  sect.addEventListener('touchend', e => {
+    const diff = budgetSwipeStartX - e.changedTouches[0].clientX;
+    if (Math.abs(diff) < 60) return;
+    budgetYear += (diff > 0 ? 1 : -1);
+    renderBudget();
+  }, { passive: true });
 }
 
-/* ================= DELETE ================= */
+// ---- Canvas Graph helpers ----
 
-function deleteExpense(id){
-  expenses = expenses.filter(e=>e.id!==id);
-  localStorage.setItem("gulData", JSON.stringify(expenses));
-  renderExpenses();
-  updateHome();
-  updateMiniChart();
-  updateBudget();
+/**
+ * Polyfill for CanvasRenderingContext2D.roundRect
+ * (supported in Chrome 99+; this covers older browsers)
+ */
+function canvasRoundRect(ctx, x, y, w, h, r) {
+  r = Math.min(r, w / 2, h / 2);
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + w, y,     x + w, y + h, r);
+  ctx.arcTo(x + w, y + h, x,     y + h, r);
+  ctx.arcTo(x,     y + h, x,     y,     r);
+  ctx.arcTo(x,     y,     x + w, y,     r);
+  ctx.closePath();
 }
 
-/* ================= EDIT ================= */
+/** Redraw all three charts for the current budgetYear. */
+function drawAllCharts() {
+  const yearExps   = cachedExpenses.filter(e => new Date(e.timestamp).getFullYear() === budgetYear);
+  const budget     = cachedBudgets.find(b => b.year === budgetYear);
+  const budgetAmt  = budget ? Number(budget.amount) : 0;
+  const totalSpent = yearExps.reduce((s, e) => s + (Number(e.amount) || 0), 0);
 
-function editExpense(id){
-
-  const exp = expenses.find(e=>e.id===id);
-  if(!exp) return;
-
-  const newAmount = prompt("Edit Amount:", exp.amount);
-  const newDesc = prompt("Edit Description:", exp.description);
-
-  if(newAmount!==null && !isNaN(newAmount)){
-    exp.amount = parseFloat(newAmount);
+  // Category totals
+  const catData = {};
+  for (const exp of yearExps) {
+    catData[exp.category] = (catData[exp.category] || 0) + Number(exp.amount);
   }
 
-  if(newDesc!==null){
-    exp.description = newDesc;
+  // Monthly totals (index 0=Jan … 11=Dec)
+  const monthly = Array(12).fill(0);
+  for (const exp of yearExps) {
+    monthly[new Date(exp.timestamp).getMonth()] += Number(exp.amount);
   }
 
-  localStorage.setItem("gulData", JSON.stringify(expenses));
-  renderExpenses();
-  updateHome();
-  updateMiniChart();
-  updateBudget();
+  drawBarChart(document.getElementById('chart-bar'), budgetAmt, totalSpent);
+  drawPieChart(document.getElementById('chart-pie'), catData);
+  drawLineChart(document.getElementById('chart-line'), monthly);
 }
 
-/* ================= COST PER CALCULATION ================= */
-/* Advanced per-expense time logic — unchanged */
-
-function calculateCostPer(){
-
-  const now = new Date();
-
-  let costMonth=0;
-  let costDay=0;
-  let costHour=0;
-  let costMinute=0;
-
-  expenses.forEach(e=>{
-
-    const expenseTime = new Date(e.date);
-    const diffMs = now - expenseTime;
-
-    // NATURAL NUMBER LOGIC
-    let minutes = Math.floor(diffMs/60000);
-    let hours   = Math.floor(diffMs/3600000);
-    let days    = Math.floor(diffMs/86400000);
-
-    // Real calendar month difference
-    let months =
-      (now.getFullYear() - expenseTime.getFullYear()) * 12 +
-      (now.getMonth() - expenseTime.getMonth());
-
-    if(now.getDate() < expenseTime.getDate()){
-      months -= 1;
-    }
-
-    // Force natural number minimum 1
-    minutes = minutes < 1 ? 1 : minutes;
-    hours   = hours   < 1 ? 1 : hours;
-    days    = days    < 1 ? 1 : days;
-    months  = months  < 1 ? 1 : months;
-
-    costMinute += e.amount / minutes;
-    costHour   += e.amount / hours;
-    costDay    += e.amount / days;
-    costMonth  += e.amount / months;
-
-  });
-
-  return {costMonth, costDay, costHour, costMinute};
-}
-
-/* ================= HOME ================= */
-
-function updateHome(){
-
-  const now = new Date();
-  const total = expenses.reduce((s,e)=>s+e.amount,0);
-  const change = total - previousTotal;
-
-  const color = change > 0 ? "#ef4444" : "#22c55e";
-
-  document.getElementById("time").innerHTML =
-    "Time: " + now.toLocaleTimeString();
-
-  document.getElementById("total").innerHTML =
-    `Total ₹${total.toFixed(2)}
-     <span style="color:${color}">
-     ${change>=0?"▲":"▼"} ${Math.abs(change).toFixed(2)}</span>`;
-
-  const costs = calculateCostPer();
-
-  document.getElementById("avgMonth").innerHTML =
-    "Cost per Month ₹" + costs.costMonth.toFixed(2);
-
-  document.getElementById("avgDay").innerHTML =
-    "Cost per Day ₹" + costs.costDay.toFixed(2);
-
-  document.getElementById("avgHour").innerHTML =
-    "Cost per Hour ₹" + costs.costHour.toFixed(4);
-
-  document.getElementById("avgMinute").innerHTML =
-    "Cost per Minute ₹" + costs.costMinute.toFixed(6);
-
-  previousTotal = total;
-}
-
-/* ================= MINI CHART ================= */
-
-function initChart(){
-
-  const ctx = document.getElementById("miniChart");
-
-  miniChart = new Chart(ctx, {
-    type: "line",
-    data: {
-      labels: [],
-      datasets: [{
-        label: "Total per Day",
-        data: [],
-        borderWidth: 2,
-        tension: 0.3,
-        pointRadius: 4
-      }]
-    },
-    options: {
-      plugins: {
-        legend: { display: false }
-      },
-      scales: {
-        x: {
-          display: true
-        },
-        y: {
-          display: true
-        }
-      }
-    }
-  });
-}
-function initBudgetCharts(){
-
-  const budgetCtx = document.getElementById("budgetChart");
-  const categoryCtx = document.getElementById("categoryChart");
-  const yearCtx = document.getElementById("yearChart");
-
-  // ================= BUDGET BAR =================
-  budgetChart = new Chart(budgetCtx, {
-    type: "bar",
-    data: {
-      labels: ["Budget", "Spent"],
-      datasets: [{
-        data: [0,0],
-        borderRadius: 10
-      }]
-    },
-    options:{
-      plugins:{
-        legend:{display:false}
-      },
-      scales:{
-        x:{
-          ticks:{color:"#e2e8f0"},
-          grid:{display:false}
-        },
-        y:{
-          ticks:{color:"#e2e8f0"},
-          grid:{color:"rgba(255,255,255,0.1)"}
-        }
-      }
-    }
-  });
-
-
-  // ================= CATEGORY DOUGHNUT =================
-  categoryChart = new Chart(categoryCtx, {
-    type: "doughnut",
-    data: {
-      labels: [],
-      datasets: [{
-        data: [],
-        borderWidth: 2,
-        borderColor:"#0f172a",
-        backgroundColor:[
-          "#3b82f6",
-          "#22c55e",
-          "#f59e0b",
-          "#ef4444",
-          "#8b5cf6",
-          "#06b6d4"
-        ]
-      }]
-    },
-    options: {
-      cutout: "60%",
-      plugins:{
-        legend:{
-          position:"bottom",
-          labels:{
-            color:"#e2e8f0",
-            padding:15
-          }
-        }
-      }
-    }
-  });
-
-
-  // ================= YEAR LINE CHART =================
-  yearChart = new Chart(yearCtx, {
-    type: "line",
-    data: {
-      labels: [],
-      datasets: [{
-        data: [],
-        borderWidth: 3,
-        tension: 0.4,
-        fill:true,
-        backgroundColor:"rgba(59,130,246,0.2)",
-        borderColor:"#3b82f6",
-        pointBackgroundColor:"#3b82f6",
-        pointRadius:5
-      }]
-    },
-    options:{
-      plugins:{
-        legend:{display:false}
-      },
-      scales:{
-        x:{
-          ticks:{color:"#e2e8f0"},
-          grid:{display:false}
-        },
-        y:{
-          ticks:{color:"#e2e8f0"},
-          grid:{color:"rgba(255,255,255,0.1)"}
-        }
-      }
-    }
-  });
-
-}
-
-function updateMiniChart(){
-
-  if(!miniChart) return;
-
-  const grouped = {};
-
-  // Group by date (YYYY-MM-DD)
-  expenses.forEach(e => {
-   const d = new Date(e.date);
-
-const date = d.toLocaleDateString("en-US", {
-  month: "short",
-  day: "numeric"
-});
-    if(!grouped[date]){
-      grouped[date] = 0;
-    }
-
-    grouped[date] += e.amount;
-  });
-
-  const labels = Object.keys(grouped).sort();
-  const values = labels.map(date => grouped[date]);
-
-  miniChart.data.labels = labels;
-  miniChart.data.datasets[0].data = values;
-
-  miniChart.update();
-}
-/* ================= RENDER ================= */
-
-function renderExpenses(){
-
-  const container = document.getElementById("expenseList");
-  container.innerHTML = "";
-
-  const search = document.getElementById("searchInput").value.toLowerCase();
-
-  expenses.forEach(e=>{
-
-    const combined = (
-      e.category + " " +
-      e.amount + " " +
-      e.description + " " +
-      new Date(e.date).toLocaleString()
-    ).toLowerCase();
-
-    if(!combined.includes(search)) return;
-
-    container.innerHTML += `
-      <div class="expenseItem">
-        <b>${e.category}</b> ₹${e.amount}<br>
-        ${e.description}<br>
-        ${new Date(e.date).toLocaleString()}<br>
-        <button onclick="editExpense(${e.id})">Edit</button>
-        <button onclick="deleteExpense(${e.id})">Delete</button>
-      </div>`;
-  });
-}
-/*--------export------------*/
-function exportPDF(){
-
-  const { jsPDF } = window.jspdf;
-  const doc = new jsPDF();
-
-  let y = 10;
-
-  doc.setFontSize(16);
-  doc.text("GUL Expense Report", 10, y);
-  y += 10;
-
-  doc.setFontSize(10);
-
-  expenses.forEach((e, index) => {
-
-    const line = 
-      `${index+1}. ${e.category} | ₹${e.amount} | ${e.description} | ${new Date(e.date).toLocaleString()}`;
-
-    doc.text(line, 10, y);
-    y += 7;
-
-    if(y > 280){
-      doc.addPage();
-      y = 10;
-    }
-
-  });
-
-  doc.save("Expense_Report.pdf");
-}
-function exportCSV(){
-
-  let csv = "Category,Amount,Description,Date\n";
-
-  expenses.forEach(e=>{
-    csv += `${e.category},${e.amount},"${e.description}",${new Date(e.date).toLocaleString()}\n`;
-  });
-
-  const blob = new Blob([csv], { type: "text/csv" });
-  const url = window.URL.createObjectURL(blob);
-
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = "Expense_Report.csv";
-  a.click();
-
-  window.URL.revokeObjectURL(url);
-}
-
-/* ================= LOOP ================= */
-setInterval(() => {
-
-  // Only update if Home section is visible
-  if (document.getElementById("homeSection").style.display !== "none") {
-    updateHome();
-  }
-
-}, 1000);
-
-/* ================= INIT ================= */
-
-window.addEventListener("DOMContentLoaded", () => {
-  initChart();
-  initBudgetCharts();   
-  renderExpenses();
-  updateMiniChart();
-  updateHome();
-  updateBudget();       
-});
+/**
+ * Graph 1 — Bar chart: Annual Budget vs Total Expense.
+ */
+function drawBarChart(canvas, budgetAmt, totalSpent) {
+  if (!canvas) return;
+  const W = canvas.width  = canvas.offsetWidth  || 300;
+  const H = canvas.height = 200;
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0, 0, W, H);
+
+  const maxVal   = Math.max(budgetAmt, totalSpent, 1);
+  const pad      = 50;
+  const chartH   = H - 50;
+  const barW     = (W - pad * 2) / 4;
+
+  const drawBar = (x, val, fillColor, label) => {
+    const bh  = (val / maxVal) * chartH;
+    const by  = H - 30 - bh;
+
+    ctx.fillStyle = fillColor;
+    canvasRoundRect(ctx, x, by, barW, bh, 6);
+    ctx.fill();
+
+    ctx.fillStyle = '#8899aa';
+    ctx.font = '11px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText(label, x + barW / 2, H - 10);
+
+    ctx.fillStyle = '#ffffff';
+    ctx.fillText(fmtShort(val), x + barW / 2, Math.max(by - 5, 14));
+  };
+
+  drawBar(pad,           budgetAmt,  '#00e5b0', 'Budget');
+  drawBar(pad + barW * 2, totalSpent, '#7b2335', 'Spent');
+
+  // Axis
+  ctx.strokeStyle = '#1a3048';
+  ctx.lineWidth   = 1;
+  ctx.beginPath();
+  ctx.moveTo(pad - 4, H - 
