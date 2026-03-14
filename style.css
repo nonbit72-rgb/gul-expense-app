@@ -1,78 +1,697 @@
-body{
-  margin:0;
-  font-family:'Poppins',sans-serif;
-  background:linear-gradient(135deg,#0f172a,#1e293b);
-  color:#e2e8f0;
-}
-h1{text-align:center;padding:15px 0;margin:0;}
+/* ============================================================
+   EXPENSE MANAGER — Stylesheet
+   
+   Colour palette (CSS variables):
+     --bg:         #0d1b2a  deep dark navy background
+     --card-bg:    #112236  card background
+     --card-br:    #1a3048  card border
+     --accent:     #00e5b0  primary teal/cyan
+     --text:       #ffffff  primary text
+     --text-2:     #8899aa  muted secondary text
+     --btn-ok:     #00c896  confirm / positive
+     --btn-del:    #7b2335  delete / negative
+     --btn-edit:   #1a3d4f  edit / neutral
+     --nav-active: #00e5b0  active nav item
+     --nav-idle:   #445566  inactive nav item
+============================================================ */
 
-.section{display:none;padding:15px 15px 100px;}
-
-.card{
-  background: rgba(255,255,255,0.05);
-  backdrop-filter: blur(15px);
-  border: 1px solid rgba(255,255,255,0.1);
-  padding:20px;
-  margin:15px 0;
-  border-radius:20px;
-  box-shadow:0 8px 32px rgba(0,0,0,0.4);
-  transition:0.3s;
-}
-
-.card:hover{
-  transform:translateY(-5px);
-}
-input,select,button{
-  width:100%;
-  padding:10px;
-  margin:6px 0;
-  border-radius:8px;
-  border:none;
-}
-
-button{
-  background: linear-gradient(45deg,#3b82f6,#6366f1);
-  color:white;
-  font-weight:bold;
-  cursor:pointer;
-  transition:0.3s;
-}
-
-button:hover{
-  transform:scale(1.05);
-  box-shadow:0 0 15px #3b82f6;
-}
-.expenseItem{
-  background:#0f172a;
-  padding:12px;
-  margin:10px 0;
-  border-radius:12px;
-  box-shadow:0 0 10px rgba(0,0,0,0.3);
+/* ── CSS Variables (dark theme defaults) ─────────────────── */
+:root {
+  --bg:         #0d1b2a;
+  --card-bg:    #112236;
+  --card-br:    #1a3048;
+  --accent:     #00e5b0;
+  --accent-dim: #00c896;
+  --text:       #ffffff;
+  --text-2:     #8899aa;
+  --text-3:     #445566;
+  --btn-ok:     #00c896;
+  --btn-ok-h:   #00b085;
+  --btn-del:    #7b2335;
+  --btn-del-h:  #9b2d43;
+  --btn-edit:   #1a3d4f;
+  --btn-edit-h: #215260;
+  --nav-bg:     #091520;
+  --nav-active: #00e5b0;
+  --nav-idle:   #445566;
+  --nav-h:      56px;
+  --danger:     #e05555;
+  --success:    #00c896;
+  --radius-card:   14px;
+  --radius-btn:    10px;
+  --radius-input:  10px;
 }
 
-.expenseItem button{
-  width:auto;
-  padding:5px 10px;
-  margin-top:5px;
-  margin-right:5px;
-  font-size:12px;
+/* ── Light Mode Adaptation ───────────────────────────────── */
+@media (prefers-color-scheme: light) {
+  :root {
+    --bg:       #e8f0f7;
+    --card-bg:  #ffffff;
+    --card-br:  #c5d8e8;
+    --text:     #0d1b2a;
+    --text-2:   #4a6070;
+    --text-3:   #8899aa;
+    --btn-edit: #2a6080;
+    --btn-edit-h: #1a4d65;
+    --nav-bg:   #0d1b2a;
+    --nav-idle: #8899aa;
+  }
 }
 
-.bottomNav{
-  position:fixed;
-  bottom:0;
-  width:100%;
-  background:#111827;
-  display:flex;
-  justify-content:space-around;
-  padding:10px 0;
-  box-shadow:0 -3px 10px rgba(0,0,0,0.4);
+/* ── Reset & Base ────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body {
+  height: 100%;
+  overflow: hidden;
+  font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  -webkit-tap-highlight-color: transparent;
+  overscroll-behavior: none;
 }
 
-.bottomNav button{
-  background:none;
-  color:#e2e8f0;
-  font-size:14px;
+/* ── App Shell ───────────────────────────────────────────── */
+#app {
+  position: fixed;
+  inset: 0 0 var(--nav-h) 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
 }
 
-.stat{margin:5px 0;font-size:14px;}
+/* ── Sections ────────────────────────────────────────────── */
+.section {
+  display: none;
+  flex-direction: column;
+  padding: 0 14px 20px;
+  min-height: 100%;
+  animation: fadeIn 0.2s ease;
+}
+.section.active { display: flex; }
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ── Section Headers ─────────────────────────────────────── */
+.section-header {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background: var(--bg);
+  padding: 16px 0 10px;
+}
+
+.home-header { padding: 20px 0 10px; }
+
+.app-title {
+  font-family: 'Courier New', 'Share Tech Mono', monospace;
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--accent);
+  letter-spacing: -0.5px;
+}
+
+.section-title {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+/* ── Cards ───────────────────────────────────────────────── */
+.card {
+  background: var(--card-bg);
+  border: 1px solid var(--card-br);
+  border-radius: var(--radius-card);
+  padding: 16px;
+  margin-bottom: 14px;
+  box-shadow: 0 2px 12px rgba(0,0,0,0.25);
+}
+
+/* Left accent border for important cards */
+.card-accent {
+  border-left: 4px solid var(--accent);
+}
+
+.card-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-2);
+  text-transform: uppercase;
+  letter-spacing: 0.7px;
+  margin-bottom: 12px;
+}
+
+/* ── Home Card 1: Time & Total ───────────────────────────── */
+.card-row-two {
+  display: flex;
+  gap: 12px;
+}
+.card-half {
+  flex: 1;
+}
+.card-half.border-left {
+  border-left: 1px solid var(--card-br);
+  padding-left: 14px;
+}
+.card-label {
+  font-size: 11px;
+  color: var(--text-2);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 4px;
+}
+.value-xl {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--text);
+  word-break: break-all;
+}
+.value-xl.mono {
+  font-family: 'Courier New', monospace;
+  letter-spacing: 1px;
+}
+.value-xl.accent { color: var(--accent); }
+
+/* ── Home Card 2: Cost Rates ─────────────────────────────── */
+.rates-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+}
+.rate-item {
+  background: rgba(0,229,176,0.05);
+  border: 1px solid var(--card-br);
+  border-radius: 10px;
+  padding: 10px 12px;
+}
+.rate-value {
+  display: block;
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--accent);
+  margin-top: 4px;
+}
+
+/* ── Calendar ────────────────────────────────────────────── */
+.calendar-nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 14px;
+}
+.calendar-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text);
+  text-align: center;
+  flex: 1;
+}
+.nav-arrow {
+  background: var(--btn-edit);
+  color: var(--accent);
+  border: none;
+  border-radius: 8px;
+  width: 36px;
+  height: 36px;
+  font-size: 20px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s;
+  flex-shrink: 0;
+}
+.nav-arrow:active { background: var(--btn-edit-h); }
+
+.cal-weekdays {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 2px;
+  margin-bottom: 4px;
+}
+.cal-wday {
+  text-align: center;
+  font-size: 10px;
+  color: var(--text-3);
+  font-weight: 600;
+  padding: 2px 0;
+}
+
+.cal-days {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 3px;
+}
+.cal-day {
+  aspect-ratio: 1;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: transform 0.1s;
+  user-select: none;
+}
+.cal-day:active { transform: scale(0.88); }
+.cal-day.empty  { cursor: default; }
+.cal-day.future { color: var(--text-3); background: rgba(68,85,102,0.15); }
+.cal-day.has-expense { background: rgba(224,60,60,0.25); color: #ff8080; border: 1px solid #7b2335; }
+.cal-day.no-expense  { background: rgba(0,200,150,0.15); color: var(--accent-dim); }
+.cal-day.today {
+  border: 2px solid var(--accent);
+  font-weight: 800;
+}
+
+/* ── Budget Section ──────────────────────────────────────── */
+.budget-controls {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.budget-controls .btn { flex: 1; font-size: 13px; }
+
+.year-nav {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  margin-bottom: 14px;
+}
+.year-nav .calendar-title { flex: none; }
+
+/* Budget summary rows */
+.summary-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--card-br);
+}
+.summary-row .value { font-weight: 700; font-size: 15px; }
+.summary-row .value.accent { color: var(--accent); }
+.text-danger { color: var(--danger); }
+
+.progress-label {
+  display: flex;
+  justify-content: space-between;
+  margin: 12px 0 6px;
+}
+.progress-bar-bg {
+  height: 8px;
+  background: var(--card-br);
+  border-radius: 4px;
+  overflow: hidden;
+}
+.progress-bar-fill {
+  height: 100%;
+  border-radius: 4px;
+  transition: width 0.4s ease;
+}
+
+/* Graph canvases */
+.graph-card { padding: 14px 10px; }
+.chart-canvas {
+  width: 100% !important;
+  height: 200px;
+  display: block;
+}
+
+/* ── Form Styles ─────────────────────────────────────────── */
+.form-group { margin-bottom: 14px; }
+
+.form-label {
+  display: block;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-2);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 6px;
+}
+.optional {
+  text-transform: none;
+  font-weight: 400;
+  font-size: 11px;
+  color: var(--text-3);
+}
+
+.form-control {
+  width: 100%;
+  background: rgba(10,22,36,0.6);
+  border: 1px solid var(--card-br);
+  border-radius: var(--radius-input);
+  color: var(--text);
+  font-size: 15px;
+  padding: 12px 14px;
+  outline: none;
+  transition: border-color 0.2s, box-shadow 0.2s;
+  -webkit-appearance: none;
+  appearance: none;
+}
+.form-control:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(0,229,176,0.15);
+}
+.form-control::placeholder { color: var(--text-3); }
+
+select.form-control {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%238899aa' stroke-width='2' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 14px center;
+  padding-right: 36px;
+}
+select.form-control option { background: #112236; color: #fff; }
+
+input[type="datetime-local"].form-control {
+  color-scheme: dark;
+}
+
+.form-hint {
+  font-size: 12px;
+  color: var(--text-2);
+  margin-bottom: 12px;
+  line-height: 1.6;
+}
+code {
+  font-family: 'Courier New', monospace;
+  font-size: 11px;
+  background: rgba(0,229,176,0.1);
+  padding: 1px 5px;
+  border-radius: 4px;
+  color: var(--accent);
+}
+
+/* ── Buttons ─────────────────────────────────────────────── */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border: none;
+  border-radius: var(--radius-btn);
+  padding: 13px 18px;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: transform 0.1s, opacity 0.15s;
+  white-space: nowrap;
+  -webkit-tap-highlight-color: transparent;
+}
+.btn:active { transform: scale(0.95); opacity: 0.85; }
+
+.btn-confirm { background: var(--btn-ok);  color: #0d1b2a; }
+.btn-confirm:hover { background: var(--btn-ok-h); }
+
+.btn-delete  { background: var(--btn-del); color: #ffffff; }
+.btn-delete:hover  { background: var(--btn-del-h); }
+
+.btn-edit    { background: var(--btn-edit); color: var(--accent); }
+.btn-edit:hover    { background: var(--btn-edit-h); }
+
+.btn-full { width: 100%; margin-top: 4px; }
+
+/* ── Expense Search ──────────────────────────────────────── */
+.search-wrap {
+  position: relative;
+  margin-bottom: 12px;
+}
+.search-icon {
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 15px;
+  color: var(--text-3);
+  pointer-events: none;
+}
+.search-input { padding-left: 38px !important; }
+
+/* ── Expense Cards ───────────────────────────────────────── */
+.expense-card {
+  background: var(--card-bg);
+  border: 1px solid var(--card-br);
+  border-left: 4px solid var(--accent);
+  border-radius: var(--radius-card);
+  padding: 14px;
+  margin-bottom: 10px;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 10px;
+  animation: fadeIn 0.15s ease;
+}
+.expense-card-left { flex: 1; min-width: 0; }
+
+.expense-category {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--accent);
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  margin-bottom: 2px;
+}
+.expense-amount {
+  font-size: 20px;
+  font-weight: 800;
+  color: var(--text);
+  margin-bottom: 3px;
+}
+.expense-description {
+  font-size: 13px;
+  color: var(--text-2);
+  margin-bottom: 3px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.expense-date {
+  font-size: 11px;
+  color: var(--text-3);
+}
+
+.expense-card-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  flex-shrink: 0;
+}
+.btn-icon {
+  width: 36px;
+  height: 36px;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 15px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.1s;
+}
+.btn-icon:active { transform: scale(0.88); }
+.btn-edit-icon    { background: var(--btn-edit);  color: var(--accent); }
+.btn-delete-icon  { background: var(--btn-del);   color: #fff; }
+.btn-invoice-icon { background: #1a2d40;          color: #aabbcc; }
+
+/* Expense footer */
+.expense-footer {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 4px;
+  padding-bottom: 12px;
+}
+.expense-footer .btn { flex: 1; }
+
+/* ── Mini expense cards in day popup ─────────────────────── */
+.mini-expense-card {
+  background: rgba(0,229,176,0.05);
+  border: 1px solid var(--card-br);
+  border-radius: 10px;
+  padding: 10px 12px;
+  margin-bottom: 8px;
+}
+.mini-expense-cat    { font-size: 10px; color: var(--accent); font-weight: 700; text-transform: uppercase; }
+.mini-expense-amount { font-size: 18px; font-weight: 800; color: var(--text); }
+.mini-expense-desc   { font-size: 12px; color: var(--text-2); margin-top: 2px; }
+.mini-expense-time   { font-size: 11px; color: var(--text-3); margin-top: 4px; }
+
+/* ── Profile Placeholder ─────────────────────────────────── */
+.profile-placeholder {
+  text-align: center;
+  padding: 40px 20px;
+}
+.profile-avatar {
+  font-size: 64px;
+  margin-bottom: 12px;
+}
+.profile-name {
+  font-size: 18px;
+  font-weight: 700;
+}
+
+/* ── Bottom Navigation ───────────────────────────────────── */
+#bottom-nav {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: var(--nav-h);
+  background: var(--nav-bg);
+  border-top: 1px solid var(--card-br);
+  display: flex;
+  align-items: stretch;
+  z-index: 100;
+  padding: 0 4px;
+}
+
+.nav-btn {
+  flex: 1;
+  background: none;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  padding: 6px 2px;
+  transition: opacity 0.15s;
+  -webkit-tap-highlight-color: transparent;
+}
+.nav-btn:active { opacity: 0.6; }
+
+.nav-icon {
+  font-size: 20px;
+  color: var(--nav-idle);
+  transition: color 0.15s, transform 0.15s;
+  display: block;
+}
+.nav-label {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--nav-idle);
+  transition: color 0.15s;
+}
+
+.nav-btn.active .nav-icon,
+.nav-btn.active .nav-label { color: var(--nav-active); }
+.nav-btn.active .nav-icon  { transform: scale(1.15); }
+
+/* Centre "Add" button — elevated look */
+.nav-btn-center {
+  position: relative;
+  top: -10px;
+}
+.nav-add-icon {
+  background: var(--accent);
+  color: #0d1b2a !important;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  font-size: 24px !important;
+  font-weight: 900;
+  display: flex !important;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 16px rgba(0,229,176,0.4);
+}
+.nav-btn-center.active .nav-add-icon,
+.nav-btn-center .nav-add-icon { color: #0d1b2a !important; }
+.nav-btn-center .nav-label { color: var(--nav-idle); }
+.nav-btn-center.active .nav-label { color: var(--nav-active); }
+
+/* ── Modals ──────────────────────────────────────────────── */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(6,14,24,0.75);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  z-index: 200;
+  padding: 0 14px 14px;
+  animation: modalIn 0.2s ease;
+}
+@keyframes modalIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+.modal-box {
+  background: var(--card-bg);
+  border: 1px solid var(--card-br);
+  border-radius: var(--radius-card);
+  padding: 20px;
+  width: 100%;
+  max-width: 480px;
+  max-height: 70vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 -4px 40px rgba(0,0,0,0.5);
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+}
+.modal-title {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text);
+}
+.modal-close {
+  background: var(--btn-del);
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  width: 28px;
+  height: 28px;
+  cursor: pointer;
+  font-size: 13px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.modal-scroll {
+  overflow-y: auto;
+  flex: 1;
+}
+
+/* ── Toast ───────────────────────────────────────────────── */
+.toast {
+  position: fixed;
+  bottom: calc(var(--nav-h) + 12px);
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--btn-ok);
+  color: #0d1b2a;
+  padding: 10px 22px;
+  border-radius: 20px;
+  font-size: 14px;
+  font-weight: 700;
+  z-index: 300;
+  opacity: 0;
+  transition: opacity 0.3s;
+  pointer-events: none;
+  white-space: nowrap;
+}
+.toast.show { opacity: 1; }
+
+/* ── Utility classes ─────────────────────────────────────── */
+.text-muted  { color: var(--text-2); }
+.accent      { color: var(--accent); }
+.text-danger { color: var(--danger); }
+
+/* Scrollbar styling */
+::-webkit-scrollbar       { width: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--card-br); border-radius: 4px; }
+                    
