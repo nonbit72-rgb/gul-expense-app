@@ -1,43 +1,76 @@
-const CACHE_NAME = "gul-expense-v5";
+/* ============================================================
+   SERVICE WORKER — Expense Manager PWA
+   - Cache-first strategy for app shell files
+   - Versioned cache: old caches are deleted on activate
+   - Serves the app fully offline
+============================================================ */
 
-const urlsToCache = [
-  "./",
-  "./index.html",
-  "./style.css",
-  "./script.js",
-  "./manifest.json",
-  "https://cdn.jsdelivr.net/npm/chart.js",
-  "https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"
+const CACHE_VERSION = 'expense-manager-v1';
+
+// Files to cache on install (app shell)
+const CACHE_FILES = [
+  './index.html',
+  './style.css',
+  './script.js',
+  './manifest.json'
 ];
 
-self.addEventListener("install", event => {
+// ---- INSTALL: Cache all app shell files ----
+self.addEventListener('install', (event) => {
   event.waitUntil(
-    caches.open(CACHE_NAME)
-      .then(cache => cache.addAll(urlsToCache))
+    caches.open(CACHE_VERSION).then((cache) => {
+      return cache.addAll(CACHE_FILES);
+    }).then(() => {
+      // Immediately activate new service worker
+      return self.skipWaiting();
+    })
   );
-  self.skipWaiting();
 });
 
-self.addEventListener("activate", event => {
+// ---- ACTIVATE: Delete old cache versions ----
+self.addEventListener('activate', (event) => {
   event.waitUntil(
-    caches.keys().then(keys =>
-      Promise.all(
-        keys.map(key=>{
-          if(key !== CACHE_NAME){
-            return caches.delete(key);
-          }
-        })
-      )
-    )
+    caches.keys().then((cacheNames) => {
+      return Promise.all(
+        cacheNames
+          .filter((name) => name !== CACHE_VERSION)
+          .map((name) => caches.delete(name))
+      );
+    }).then(() => {
+      // Take control of all open clients immediately
+      return self.clients.claim();
+    })
   );
-  self.clients.claim();
 });
 
-self.addEventListener("fetch", event => {
+// ---- FETCH: Cache-first, fallback to network ----
+self.addEventListener('fetch', (event) => {
+  // Only handle same-origin GET requests
+  if (event.request.method !== 'GET') return;
+
   event.respondWith(
-    caches.match(event.request)
-      .then(response=>{
-        return response || fetch(event.request);
-      })
+    caches.match(event.request).then((cachedResponse) => {
+      // Return cached version if available
+      if (cachedResponse) {
+        return cachedResponse;
+      }
+      // Otherwise fetch from network and cache the result
+      return fetch(event.request).then((networkResponse) => {
+        // Cache valid responses for future offline use
+        if (networkResponse && networkResponse.status === 200) {
+          const responseClone = networkResponse.clone();
+          caches.open(CACHE_VERSION).then((cache) => {
+            cache.put(event.request, responseClone);
+          });
+        }
+        return networkResponse;
+      }).catch(() => {
+        // If both cache and network fail, return the cached index.html
+        // (handles navigation requests when fully offline)
+        if (event.request.mode === 'navigate') {
+          return caches.match('./index.html');
+        }
+      });
+    })
   );
 });
