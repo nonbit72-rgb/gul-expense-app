@@ -1,72 +1,59 @@
 /* ============================================================
    SERVICE WORKER — Expense Manager PWA
-   - Cache-first strategy for app shell files
-   - Versioned cache: old caches are deleted on activate
-   - Serves the app fully offline
+   - Cache-first strategy for all app shell files
+   - Versioned cache: old caches deleted on activate
+   - Works on GitHub Pages (subdirectory) and root hosting
 ============================================================ */
 
-const CACHE_VERSION = 'expense-manager-v1';
+const CACHE_VERSION = 'expense-manager-v2';
 
-// Files to cache on install (app shell)
+// All files to cache on install (relative to SW scope)
 const CACHE_FILES = [
+  './',
   './index.html',
   './style.css',
   './script.js',
-  './manifest.json'
+  './manifest.json',
+  './icon-192.png',
+  './icon-512.png'
 ];
 
-// ---- INSTALL: Cache all app shell files ----
+// ---- INSTALL: Pre-cache all app shell files ----
 self.addEventListener('install', (event) => {
   event.waitUntil(
-    caches.open(CACHE_VERSION).then((cache) => {
-      return cache.addAll(CACHE_FILES);
-    }).then(() => {
-      // Immediately activate new service worker
-      return self.skipWaiting();
-    })
+    caches.open(CACHE_VERSION)
+      .then((cache) => cache.addAll(CACHE_FILES))
+      .then(() => self.skipWaiting())
   );
 });
 
-// ---- ACTIVATE: Delete old cache versions ----
+// ---- ACTIVATE: Delete all old cache versions ----
 self.addEventListener('activate', (event) => {
   event.waitUntil(
-    caches.keys().then((cacheNames) => {
-      return Promise.all(
-        cacheNames
-          .filter((name) => name !== CACHE_VERSION)
-          .map((name) => caches.delete(name))
-      );
-    }).then(() => {
-      // Take control of all open clients immediately
-      return self.clients.claim();
-    })
+    caches.keys()
+      .then((names) => Promise.all(
+        names.filter((n) => n !== CACHE_VERSION).map((n) => caches.delete(n))
+      ))
+      .then(() => self.clients.claim())
   );
 });
 
-// ---- FETCH: Cache-first, fallback to network ----
+// ---- FETCH: Cache-first, network fallback ----
 self.addEventListener('fetch', (event) => {
-  // Only handle same-origin GET requests
   if (event.request.method !== 'GET') return;
 
   event.respondWith(
-    caches.match(event.request).then((cachedResponse) => {
-      // Return cached version if available
-      if (cachedResponse) {
-        return cachedResponse;
-      }
-      // Otherwise fetch from network and cache the result
-      return fetch(event.request).then((networkResponse) => {
-        // Cache valid responses for future offline use
-        if (networkResponse && networkResponse.status === 200) {
-          const responseClone = networkResponse.clone();
-          caches.open(CACHE_VERSION).then((cache) => {
-            cache.put(event.request, responseClone);
-          });
+    caches.match(event.request).then((cached) => {
+      if (cached) return cached;
+
+      return fetch(event.request).then((response) => {
+        if (response && response.status === 200 && response.type !== 'opaque') {
+          const clone = response.clone();
+          caches.open(CACHE_VERSION).then((cache) => cache.put(event.request, clone));
         }
-        return networkResponse;
+        return response;
       }).catch(() => {
-        // If both cache and network fail, return the cached index.html
-        // (handles navigation requests when fully offline)
+        // Offline fallback: return cached index.html for navigation requests
         if (event.request.mode === 'navigate') {
           return caches.match('./index.html');
         }
