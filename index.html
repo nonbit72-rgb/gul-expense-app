@@ -1,89 +1,360 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<meta name="theme-color" content="#0f172a">
-<title>GUL Ultra Expense Manager</title>
-
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-<link rel="manifest" href="manifest.json">
-
-<script>
-if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('service-worker.js');
-}
-</script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-<link rel="stylesheet" href="style.css">
-<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap" rel="stylesheet">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <meta name="theme-color" content="#00e5b0" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <title>Expense Manager</title>
+  <link rel="manifest" href="manifest.json" />
+  <link rel="stylesheet" href="style.css" />
 </head>
-
 <body>
 
-<h1>GUL Expense Manager</h1>
+<div id="app">
 
-<!-- HOME -->
-<div id="homeSection" class="section">
-  <div class="card">
-    <div id="time" class="stat"></div>
-    <div id="total" class="stat"></div>
-    <div id="avgMonth" class="stat"></div>
-    <div id="avgDay" class="stat"></div>
-    <div id="avgHour" class="stat"></div>
-    <div id="avgMinute" class="stat"></div>
-    <canvas id="miniChart" height="90"></canvas>
+  <!-- ===================================================
+       SECTION: HOME
+  =================================================== -->
+  <section id="section-home" class="section active">
+
+    <header class="section-header home-header">
+      <h1 class="app-title">Expense Manager</h1>
+    </header>
+
+    <!-- Card 1: Current Time & Total Expense -->
+    <div class="card card-accent">
+      <div class="card-row-two">
+        <div class="card-half">
+          <div class="card-label">Current Time</div>
+          <div id="display-time" class="value-xl mono">--:--:--</div>
+        </div>
+        <div class="card-half border-left">
+          <div class="card-label">Total Expenses</div>
+          <div id="display-total" class="value-xl accent">₹0.00</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Card 2: Cost Rates (recalculated every second) -->
+    <div class="card" id="card-rates">
+      <div class="card-title">Cost Rates</div>
+      <div class="rates-grid">
+        <div class="rate-item">
+          <div class="card-label">Per Month</div>
+          <div id="rate-month" class="rate-value">₹0.00</div>
+        </div>
+        <div class="rate-item">
+          <div class="card-label">Per Day</div>
+          <div id="rate-day" class="rate-value">₹0.00</div>
+        </div>
+        <div class="rate-item">
+          <div class="card-label">Per Hour</div>
+          <div id="rate-hour" class="rate-value">₹0.00</div>
+        </div>
+        <div class="rate-item">
+          <div class="card-label">Per Minute</div>
+          <div id="rate-minute" class="rate-value">₹0.00</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Card 3: Monthly Calendar -->
+    <div class="card" id="card-calendar">
+      <div class="calendar-nav">
+        <button id="cal-prev" class="nav-arrow" aria-label="Previous month">&#8249;</button>
+        <span id="cal-title" class="calendar-title"></span>
+        <button id="cal-next" class="nav-arrow" aria-label="Next month">&#8250;</button>
+      </div>
+      <div id="calendar-grid"></div>
+    </div>
+
+  </section><!-- /section-home -->
+
+
+  <!-- ===================================================
+       SECTION: BUDGET
+  =================================================== -->
+  <section id="section-budget" class="section">
+
+    <header class="section-header">
+      <h2 class="section-title">Budget</h2>
+    </header>
+
+    <!-- Budget action buttons -->
+    <div class="budget-controls">
+      <button class="btn btn-confirm" onclick="openAddBudgetModal()">+ Add</button>
+      <button class="btn btn-edit"    onclick="openEditBudgetModal()">&#10000; Edit</button>
+      <button class="btn btn-delete"  onclick="deleteBudgetForYear()">&#10005; Delete</button>
+    </div>
+
+    <!-- Year navigation (swipe or buttons) -->
+    <div class="year-nav">
+      <button id="budget-prev-year" class="nav-arrow">&#8249;</button>
+      <span id="budget-year-label" class="calendar-title">2025</span>
+      <button id="budget-next-year" class="nav-arrow">&#8250;</button>
+    </div>
+
+    <!-- Budget summary card -->
+    <div class="card">
+      <div id="budget-summary-content" class="text-muted" style="text-align:center; padding:8px;">
+        No budget set for this year.
+      </div>
+    </div>
+
+    <!-- Graph 1: Bar — Budget vs Expense -->
+    <div class="card graph-card">
+      <div class="card-title">Budget vs Expense</div>
+      <canvas id="chart-bar" class="chart-canvas"></canvas>
+    </div>
+
+    <!-- Graph 2: Pie — Category Breakdown -->
+    <div class="card graph-card">
+      <div class="card-title">Category Breakdown</div>
+      <canvas id="chart-pie" class="chart-canvas" style="height:240px"></canvas>
+    </div>
+
+    <!-- Graph 3: Line — Monthly Totals -->
+    <div class="card graph-card">
+      <div class="card-title">Monthly Expenses</div>
+      <canvas id="chart-line" class="chart-canvas"></canvas>
+    </div>
+
+  </section><!-- /section-budget -->
+
+
+  <!-- ===================================================
+       SECTION: ADD / EDIT EXPENSE
+  =================================================== -->
+  <section id="section-add" class="section">
+
+    <header class="section-header">
+      <h2 id="add-section-title" class="section-title">Add Expense</h2>
+    </header>
+
+    <!-- Expense form card -->
+    <div class="card">
+      <div id="add-form-title" class="card-title">New Expense</div>
+
+      <div class="form-group">
+        <label class="form-label" for="input-category">Category</label>
+        <select id="input-category" class="form-control" onchange="onCategoryChange()">
+          <option value="Food &amp; Dining">Food &amp; Dining</option>
+          <option value="Travel">Travel</option>
+          <option value="Shopping">Shopping</option>
+          <option value="College Expense">College Expense</option>
+          <option value="Other">Other</option>
+        </select>
+      </div>
+
+      <!-- Custom category field (shown only when "Other" is selected) -->
+      <div class="form-group" id="custom-cat-group" style="display:none">
+        <label class="form-label" for="input-custom-cat">Custom Category Name</label>
+        <input type="text" id="input-custom-cat" class="form-control"
+               placeholder="e.g. Medical, Utilities…" maxlength="60" />
+      </div>
+
+      <div class="form-group">
+        <label class="form-label" for="input-amount">Amount (&#8377;)</label>
+        <input type="number" id="input-amount" class="form-control"
+               placeholder="0.00" step="0.01" min="0" inputmode="decimal" />
+      </div>
+
+      <div class="form-group">
+        <label class="form-label" for="input-desc">Description <span class="optional">(optional)</span></label>
+        <input type="text" id="input-desc" class="form-control"
+               placeholder="What was this expense for?" maxlength="200" />
+      </div>
+
+      <div class="form-group">
+        <label class="form-label" for="input-datetime">Date &amp; Time</label>
+        <input type="datetime-local" id="input-datetime" class="form-control" />
+      </div>
+
+      <button id="btn-confirm-expense" class="btn btn-confirm btn-full" onclick="handleAddExpense()">
+        &#10003; Confirm
+      </button>
+      <button id="btn-cancel-edit" class="btn btn-edit btn-full" style="display:none; margin-top:8px"
+              onclick="cancelEdit()">
+        Cancel
+      </button>
+    </div>
+
+    <!-- Hidden: stores ID when editing -->
+    <input type="hidden" id="editing-id" value="" />
+
+    <!-- CSV Import card -->
+    <div class="card" style="margin-top:16px">
+      <div class="card-title">Bulk Import via CSV</div>
+      <p class="text-muted form-hint">
+        Format: <code>Category, Amount, Description, Date</code><br>
+        Date column should include both date and time.<br>
+        Unknown categories are imported as-is (treated as custom).
+      </p>
+      <input type="file" id="csv-file-input" accept=".csv" style="display:none"
+             onchange="handleCSVImport(event)" />
+      <button class="btn btn-edit btn-full"
+              onclick="document.getElementById('csv-file-input').click()">
+        &#128194; Upload CSV File
+      </button>
+      <div id="csv-status" class="form-hint" style="margin-top:8px"></div>
+    </div>
+
+  </section><!-- /section-add -->
+
+
+  <!-- ===================================================
+       SECTION: EXPENSE LIST
+  =================================================== -->
+  <section id="section-expense" class="section">
+
+    <header class="section-header">
+      <h2 class="section-title">Expenses</h2>
+    </header>
+
+    <!-- Unified search box -->
+    <div class="search-wrap">
+      <span class="search-icon">&#128269;</span>
+      <input type="text" id="expense-search" class="form-control search-input"
+             placeholder="Search amount, category, description, date…"
+             oninput="onSearchInput(this.value)" />
+    </div>
+
+    <!-- Expense cards rendered by JS -->
+    <div id="expense-list"></div>
+
+    <!-- Pagination & Export controls -->
+    <div id="expense-footer" class="expense-footer">
+      <button id="view-all-btn" class="btn btn-edit" onclick="toggleViewAll()"
+              style="display:none">View All Expenses</button>
+      <button class="btn btn-edit" onclick="exportCSV()">&#8595; Export CSV</button>
+    </div>
+
+  </section><!-- /section-expense -->
+
+
+  <!-- ===================================================
+       SECTION: PROFILE (Placeholder)
+  =================================================== -->
+  <section id="section-profile" class="section">
+
+    <header class="section-header">
+      <h2 class="section-title">Profile</h2>
+    </header>
+
+    <!--
+    ================================================================
+    PROFILE SECTION — CLEAN PLACEHOLDER
+    ================================================================
+    This section is intentionally a placeholder, designed to make
+    future additions simple without touching any other code.
+
+    HOW TO EXTEND:
+    ─────────────
+    1. Add HTML inside #profile-content below.
+    2. Add the corresponding JS in the PROFILE section of script.js.
+    3. Use dbPut('settings', { key, value }) for persistent storage.
+    4. Call refreshCache() if you add a new IndexedDB object store.
+
+    SUGGESTED FEATURES:
+    ─────────────────────
+    • User name & avatar
+    • Currency preference (default: ₹)
+    • Export all data as JSON backup
+    • Import data from JSON backup
+    • Wipe / reset all expenses
+    • App version & info
+    • Category colour customisation
+    ================================================================
+    -->
+    <div class="card profile-placeholder" id="profile-content">
+      <div class="profile-avatar">&#128100;</div>
+      <div class="profile-name text-muted">Your Profile</div>
+      <p class="text-muted" style="font-size:13px; margin-top:8px;">
+        Profile features coming soon.
+      </p>
+      <p class="text-muted" style="font-size:11px; margin-top:6px; color:#445566;">
+        Customise your name, currency, and preferences here.
+      </p>
+    </div>
+
+  </section><!-- /section-profile -->
+
+</div><!-- /#app -->
+
+
+<!-- ===================================================
+     BOTTOM NAVIGATION BAR
+=================================================== -->
+<nav id="bottom-nav" role="navigation" aria-label="Main navigation">
+  <button class="nav-btn active" data-section="home"    onclick="navigateTo('home')">
+    <span class="nav-icon">&#127968;</span>
+    <span class="nav-label">Home</span>
+  </button>
+  <button class="nav-btn"        data-section="budget"  onclick="navigateTo('budget')">
+    <span class="nav-icon">&#128181;</span>
+    <span class="nav-label">Budget</span>
+  </button>
+  <button class="nav-btn nav-btn-center" data-section="add" onclick="navigateTo('add')">
+    <span class="nav-icon nav-add-icon">&#43;</span>
+    <span class="nav-label">Add</span>
+  </button>
+  <button class="nav-btn"        data-section="expense" onclick="navigateTo('expense')">
+    <span class="nav-icon">&#128222;</span>
+    <span class="nav-label">Expense</span>
+  </button>
+  <button class="nav-btn"        data-section="profile" onclick="navigateTo('profile')">
+    <span class="nav-icon">&#129297;</span>
+    <span class="nav-label">Profile</span>
+  </button>
+</nav>
+
+
+<!-- ===================================================
+     MODAL: Day Expenses Popup
+=================================================== -->
+<div id="modal-day" class="modal-overlay" style="display:none" onclick="closeDayModal(event)">
+  <div class="modal-box">
+    <div class="modal-header">
+      <span id="day-modal-title" class="modal-title">Expenses</span>
+      <button class="modal-close" onclick="closeDayModal()">&#10005;</button>
+    </div>
+    <div id="day-modal-content" class="modal-scroll"></div>
   </div>
 </div>
-<!-- BUDGET -->
-<div id="budgetSection" class="section">
-  <div class="card">
-    <input type="number" id="monthlyBudgetInput" placeholder="Set Monthly Budget">
-<button onclick="setBudget()">Save Budget</button>
-<button onclick="editBudget()">Edit Budget</button>
-<button onclick="deleteBudget()">Delete Budget</button>
 
-<div id="budgetStatus"></div>
-<div id="budgetPercent"></div>
-    <canvas id="budgetChart" height="100"></canvas>
-    <canvas id="categoryChart" height="100"></canvas>
-    <canvas id="yearChart" height="100"></canvas>
-  </div>
-</div>
-<!-- ADD -->
-<div id="addSection" class="section">
-  <div class="card">
-    <select id="category">
-      <option>Food</option>
-      <option>Travel</option>
-      <option>Shopping</option>
-      <option>College Expense</option>
-      <option>Other</option>
-    </select>
-    <input type="number" id="amount" placeholder="Amount">
-    <input type="text" id="description" placeholder="Description">
-    <input type="datetime-local" id="customTime">
-    <button onclick="addExpense()">Add Expense</button>
+
+<!-- ===================================================
+     MODAL: Add / Edit Budget
+=================================================== -->
+<div id="modal-budget" class="modal-overlay" style="display:none" onclick="closeBudgetModal(event)">
+  <div class="modal-box">
+    <div class="modal-header">
+      <span id="budget-modal-title" class="modal-title">Add Budget</span>
+      <button class="modal-close" onclick="closeBudgetModal()">&#10005;</button>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Year</label>
+      <input type="number" id="budget-year-input" class="form-control"
+             placeholder="2025" min="2000" max="2100" />
+    </div>
+    <div class="form-group">
+      <label class="form-label">Annual Budget (&#8377;)</label>
+      <input type="number" id="budget-amount-input" class="form-control"
+             placeholder="50000" step="0.01" min="0" inputmode="decimal" />
+    </div>
+    <button class="btn btn-confirm btn-full" onclick="saveBudget()">&#10003; Save Budget</button>
   </div>
 </div>
 
-<!-- LIST -->
-<div id="listSection" class="section">
-  <div class="card">
-    <input type="text" id="searchInput" placeholder="Search..." onkeyup="renderExpenses()">
-    <div id="expenseList"></div>
-    <button onclick="exportPDF()">Export to PDF</button>
-<button onclick="exportCSV()">Export to Excel</button>
-  </div>
-</div>
 
-<div class="bottomNav">
-  <button onclick="showSection('homeSection')">Home</button>
-  <button onclick="showSection('budgetSection')">Budget</button>
-  <button onclick="showSection('addSection')">Add</button>
-  <button onclick="showSection('listSection')">Expenses</button>
-</div>
+<!-- ===================================================
+     TOAST NOTIFICATION (created by JS if needed)
+=================================================== -->
+<div id="toast" class="toast" aria-live="polite"></div>
+
+
 <script src="script.js"></script>
-
 </body>
 </html>
